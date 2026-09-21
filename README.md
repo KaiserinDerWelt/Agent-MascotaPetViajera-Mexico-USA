@@ -1,6 +1,9 @@
 # Agent-MascotaPetViajera-Mexico-USA
 - Este es mi proyecto para el hackathon del curso META · Gen 1, DEV.F - CPFIA (Gobierno de Mexico).
 - This is my hackathon project for the course for META · Gen 1 and DEV.F - CPFIA (Mexican Government).
+<p align="center">
+  <img src="https://github.com/KaiserinDerWelt/Agent-MascotaPetViajera-Mexico-USA/blob/main/MascotaPet.JPG" alt="Justino MascotaPet" width="400"/>
+</p>
 
 # Español 
 # 🐶 Justino: Tu agente de importación y exportación de mascotas
@@ -41,6 +44,14 @@ Aunque actualmente el enfoque está en **México ↔ USA**, el proyecto es **esc
 ## ✨ Objetivo final
 Facilitar el transporte internacional de **perritos y gatitos** 🐾, eliminando barreras de acceso a la información y ofreciendo una experiencia más amigable para los dueños de mascotas.
 
+## 🐾 Dedicado a mi amigo que se fue
+
+<p align="center">❤️🐾❤️🐾❤️🐾❤️🐾❤️</p>
+
+**En honor de mi mejor amigo y compañero de viaje, mi pug: el Justin, por todos los viajes que hicimos entre México y USA durante 10 años.** 
+
+<p align="center">❤️🐾❤️🐾❤️🐾❤️🐾❤️</p>
+
 # English
 # 🐶 Justin: Your Pet Import & Export Agent
 
@@ -80,5 +91,16 @@ While the current focus is **Mexico ↔ USA**, the project is **scalable to doze
 
 ## ✨ Final Goal
 To make international pet transportation 🐾 easier by removing barriers to information and offering a friendlier experience for pet owners.
+
+---
+
+## 🐾 Dedication
+
+<p align="center">❤️🐾❤️🐾❤️🐾❤️🐾❤️</p>
+
+**In honor of my best friend and travel companion, my pug: Justin, for all the journeys we made between Mexico and the USA over 10 years.**
+
+<p align="center">❤️🐾❤️🐾❤️🐾❤️🐾❤️</p>
+
 
 
