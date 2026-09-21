@@ -48,7 +48,7 @@ Facilitar el transporte internacional de **perritos y gatitos** 🐾, eliminando
 
 <p align="center">❤️🐾❤️🐾❤️🐾❤️🐾❤️</p>
 
-**En honor de mi mejor amigo y compañero de viaje, mi pug: el Justin, por todos los viajes que hicimos entre México y USA durante 10 años.** 
+**En honor de mi mejor amigo y compañero de viaje, mi pug: el Justin, por todos los viajes que hicimos entre México y USA durante 10 años. QEPD** 
 
 <p align="center">❤️🐾❤️🐾❤️🐾❤️🐾❤️</p>
 
@@ -77,7 +77,7 @@ Currently, requirements must be checked on SENASICA’s website or requested via
 ---
 
 ## 💡 Proposed Solution
-**Justino** aims to simplify access to regulations through a conversational agent that:
+**Justin** aims to simplify access to regulations through a conversational agent that:
 - Explains requirements in plain, user-friendly language.  
 - Centralizes all information in one place.  
 - Reduces costs and errors in the process.  
@@ -98,7 +98,7 @@ To make international pet transportation 🐾 easier by removing barriers to inf
 
 <p align="center">❤️🐾❤️🐾❤️🐾❤️🐾❤️</p>
 
-**In honor of my best friend and travel companion, my pug: Justin, for all the journeys we made between Mexico and the USA over 10 years.**
+**In honor of my best friend and travel companion, my pug: Justin, for all the journeys we made between Mexico and the USA over 10 years. RIP**
 
 <p align="center">❤️🐾❤️🐾❤️🐾❤️🐾❤️</p>
 
