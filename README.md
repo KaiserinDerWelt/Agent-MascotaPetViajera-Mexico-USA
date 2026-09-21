@@ -14,15 +14,13 @@ El proyecto consiste en **Justino**, un perrito agente que guía a los usuarios 
 La idea surge de mi experiencia personal al transportar a mi perrita y enfrentar dificultades para acceder a la información oficial.  
 Actualmente, los requisitos deben consultarse en la página de SENASICA o solicitarse por correo electrónico, recibiendo después un PDF con la normativa.
 
-Aunque la información está disponible en línea, existen dos problemas principales:
-- Gran parte del contenido está en **imágenes no indexadas en Google**.  
-- El lenguaje es **técnico y poco claro** para personas sin conocimientos aduanales o veterinarios.
-
 ---
 
 ## 🚨 Problema detectado
-- Usuarios frustrados por la falta de claridad.  
-- Errores de último momento al importar/exportar mascotas.  
+- Usuarios frustrados por la falta de claridad.
+- Gran parte del contenido está en **imágenes no indexadas en Google**. 
+- Errores de último momento al importar/exportar mascotas.
+- El lenguaje es **técnico y poco claro** para personas sin conocimientos aduanales o veterinarios.
 - Servicios gratuitos encarecidos por gestores que cobran miles de pesos por trámites e información.
 
 ---
@@ -56,15 +54,13 @@ The project introduces **Justino**, a dog agent who guides users through the **p
 The idea was born from my personal experience transporting my dog and facing difficulties accessing official information.  
 Currently, requirements must be checked on SENASICA’s website or requested via email, after which users receive a PDF with the regulations.
 
-Although the information is technically available online, two major issues exist:
-- Much of the content is embedded in **images not indexed by Google**.  
-- The language is **technical and unclear** for everyday people without customs or veterinary knowledge.
-
 ---
 
 ## 🚨 Problem
 - Users experience frustration due to lack of clarity.  
-- Last-minute mistakes occur when importing/exporting pets.  
+- Last-minute mistakes occur when importing/exporting pets.
+- Much of the content is embedded in **images not indexed by Google**.
+- The language is **technical and unclear** for everyday people without customs or veterinary knowledge.
 - Free services become expensive, as intermediaries charge thousands of pesos for information and paperwork.
 
 ---
