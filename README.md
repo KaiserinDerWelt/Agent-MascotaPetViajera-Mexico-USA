@@ -1,8 +1,8 @@
 # Agent-MascotaPetViajera-Mexico-USA
-Este es mi proyecto para el hackathon del curso META · Gen 1, DEV.F - CPFIA (Gobierno de Mexico)
-This is my hackathon project for the course for META · Gen 1 and DEV.F - CPFIA (Mexican Government)
+- Este es mi proyecto para el hackathon del curso META · Gen 1, DEV.F - CPFIA (Gobierno de Mexico).
+- This is my hackathon project for the course for META · Gen 1 and DEV.F - CPFIA (Mexican Government).
 
-#Español 
+# Español 
 # 🐶 Justino: Tu agente de importación y exportación de mascotas
 
 ## 📌 Descripción del proyecto
@@ -43,7 +43,7 @@ Aunque actualmente el enfoque está en **México ↔ USA**, el proyecto es **esc
 ## ✨ Objetivo final
 Facilitar el transporte internacional de **perritos y gatitos** 🐾, eliminando barreras de acceso a la información y ofreciendo una experiencia más amigable para los dueños de mascotas.
 
-#English
+# English
 # 🐶 Justin: Your Pet Import & Export Agent
 
 ## 📌 Project Overview
