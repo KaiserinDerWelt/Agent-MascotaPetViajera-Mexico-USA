@@ -9,7 +9,7 @@
 # 🐶 Justino: Tu agente de importación y exportación de mascotas
 
 ## 📌 Descripción del proyecto
-El proyecto consiste en **Justino**, un perrito agente que guía a los usuarios en los trámites y requisitos para **importar y exportar perros y gatos entre México y Estados Unidos**, de acuerdo con la normativa vigente de **SENASICA**.
+El proyecto consiste en **Justino**, un perrito agente que guía a los usuarios en los trámites y requisitos para **importar y exportar perros como mascota entre México y Estados Unidos**, de acuerdo con la normativa vigente de **SENASICA**.
 
 ---
 
@@ -57,7 +57,7 @@ Facilitar el transporte internacional de **perritos y gatitos** 🐾, eliminando
 
 ## 📌 Project Overview
 This is a draft developed for a hackathon.  
-The project introduces **Justino**, a dog agent who guides users through the **procedures and requirements for importing and exporting dogs and cats between Mexico and the USA**, following the official regulations of **SENASICA**.
+The project introduces **Justino**, a dog agent who guides users through the **procedures and requirements for importing and exporting dogs between Mexico and the USA**, following the official regulations of **SENASICA**.
 
 ---
 
@@ -85,7 +85,7 @@ Currently, requirements must be checked on SENASICA’s website or requested via
 ---
 
 ## 🌍 Scalability
-While the current focus is **Mexico ↔ USA**, the project is **scalable to dozens of countries** where SENASICA issues import and export certificates for air transport of dogs and cats.
+While the current focus is **Mexico ↔ USA**, the project is **scalable to dozens of countries** where SENASICA issues import and export certificates for air transport of dogs.
 
 ---
 
