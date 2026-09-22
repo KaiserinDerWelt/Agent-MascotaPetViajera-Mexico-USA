@@ -13,9 +13,9 @@ type NextApiResponse<T = unknown> = {
 };
 
 import { supabase } from "../lib/supabase"; // tu cliente Supabase
-import OpenAI from "openai";
+import { HfInference } from "@huggingface/inference";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const hf = new HfInference(process.env.HF_API_KEY!);
 
 export default async function handler(
   req: NextApiRequest,
@@ -23,15 +23,15 @@ export default async function handler(
 ) {
   const query = typeof req.body?.query === "string" ? req.body.query : "";
 
-  // 1. Crear embedding de la consulta
-  const embedding = await openai.embeddings.create({
-    model: "text-embedding-ada-002",
-    input: query,
+  // 1. Crear embedding de la consulta con Hugging Face
+  const embedding = await hf.featureExtraction({
+    model: "sentence-transformers/all-MiniLM-L6-v2",
+    inputs: query,
   });
 
   // 2. Buscar documentos similares en Supabase
   const { data, error } = await supabase.rpc("match_documents", {
-    query_embedding: embedding.data[0].embedding,
+    query_embedding: embedding[0], // vector generado
     match_count: 3,
   });
 
@@ -41,14 +41,12 @@ export default async function handler(
 
   const context = (data ?? []).map((d: { content: string }) => d.content).join("\n");
 
-  // 3. Generar respuesta con contexto
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4",
-    messages: [
-      { role: "system", content: "Responde en tono institucional SENASICA." },
-      { role: "user", content: `Pregunta: ${query}\nContexto:\n${context}` },
-    ],
+  // 3. Generar respuesta con contexto usando Hugging Face
+  const completion = await hf.textGeneration({
+    model: "tiiuae/falcon-7b-instruct",
+    inputs: `Pregunta: ${query}\nContexto:\n${context}\nResponde en tono institucional SENASICA.`,
+    parameters: { max_new_tokens: 200 },
   });
 
-  res.status(200).json({ answer: completion.choices[0].message.content });
+  res.status(200).json({ answer: completion.generated_text });
 }
