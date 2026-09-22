@@ -1,8 +1,12 @@
 import React from "react";
-import ChatUI from "./Components/ChatUI";
+import ChatUI from "./ChatUI";
 
-function App() {
-  return React.createElement(ChatUI);
+function App(): JSX.Element {
+  return (
+    <div>
+      <ChatUI />
+    </div>
+  );
 }
 
 export default App;
