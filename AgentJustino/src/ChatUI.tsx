@@ -23,8 +23,9 @@ function ChatUI(): ReactElement {
     <Box sx={{ maxWidth: 600, margin: "auto", padding: 3 }}>
       <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
         <img src={senasicaLogo} alt="SENASICA Logo" style={{ height: 60, marginRight: 16 }} />
-        <Typography variant="h2">Agente Justino 🐶</Typography>
+        <h2>Agente Justino 🐶</h2><br></br>
       </Box>
+      <Box> <p style={{ marginLeft: "auto", fontStyle: "italic" }}>Tu asistente virtual de transporte de perros en SENASICA</p></Box>
 
       <Paper sx={{ p: 2, minHeight: 200, mb: 2 }}>
         {messages.map((msg, i) => (
