@@ -4,5 +4,8 @@
     "@emotion/styled": "^11.14.1",
     "@huggingface/inference": "^4.13.30",
     "@mui/material": "^9.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2"
   }
 }
