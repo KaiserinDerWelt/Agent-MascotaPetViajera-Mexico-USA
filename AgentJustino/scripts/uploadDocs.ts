@@ -1,5 +1,5 @@
-import { supabase } from "./supabase";
-import { hf } from "./huggingface";
+import { supabase } from "../lib/supabase";
+import { hf } from "../lib/huggingface";
 
 export async function uploadDocs(docs: string[]) {
   for (let i = 0; i < docs.length; i++) {
