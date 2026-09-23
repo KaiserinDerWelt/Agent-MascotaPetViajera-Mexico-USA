@@ -12,12 +12,30 @@ function ChatUI(): ReactElement {
   const [input, setInput] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    const response = `Respuesta de Justino: ${input}`;
-    setMessages([...messages, { user: input }, { agent: response }]);
-    setInput("");
-  };
+  const handleSend = async () => {
+  if (!input.trim()) return;
+
+  // Guardar mensaje del usuario
+  setMessages((prev) => [...prev, { user: input }]);
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: input }),
+    });
+
+    const data = await res.json();
+
+    // Guardar respuesta del agente
+    setMessages((prev) => [...prev, { agent: data.answer }]);
+  } catch {
+    setMessages((prev) => [...prev, { agent: "Error al consultar el backend." }]);
+  }
+
+  setInput("");
+};
+
 
   return (
     <Box sx={{ maxWidth: 600, margin: "auto", padding: 3 }}>
