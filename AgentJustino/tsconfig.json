@@ -12,7 +12,7 @@
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["src", "api"],
+  "include": ["src", "api","env.d.ts"],
   "exclude": ["node_modules"]
 }
 
