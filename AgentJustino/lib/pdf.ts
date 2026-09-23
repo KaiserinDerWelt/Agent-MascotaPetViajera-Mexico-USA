@@ -1,9 +1,18 @@
-import fs from "fs";
-import pdfParse from "pdf-parse";
+export async function readPDF(file: File): Promise<string> {
+  const data = await file.arrayBuffer();
+  const pdfjsLib = await import("pdfjs-dist");
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
 
-export async function readPDF(path: string): Promise<string> {
-  const dataBuffer = fs.readFileSync(path);
-  const pdfData = await pdfParse(dataBuffer);
-  return pdfData.text;
+  let text = "";
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .map((item) => ("str" in item && typeof item.str === "string" ? item.str : ""))
+      .join(" ");
+    text += `${pageText} `;
+  }
+
+  return text.trim();
 }
-

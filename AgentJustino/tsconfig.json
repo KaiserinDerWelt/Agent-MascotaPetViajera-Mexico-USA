@@ -11,9 +11,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-     "types": ["node"]
+    "types": ["node"]
   },
-  "include": ["src", "api","env.d.ts","types.d.ts"],
+  "include": ["src", "api", "lib", "env.d.ts", "types.d.ts"],
   "exclude": ["node_modules"]
 }
 
