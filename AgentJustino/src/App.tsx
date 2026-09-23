@@ -1,7 +1,6 @@
-import React from "react";
 import ChatUI from "./ChatUI";
 
-function App(): JSX.Element {
+function App() {
   return (
     <div>
       <ChatUI />
