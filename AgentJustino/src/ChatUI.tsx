@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from "react";
 import { Box, Typography, TextField, Button, Paper } from "@mui/material";
 import senasicaLogo from "./assets/senasica-logo.png";
-
+import { answerQueryFromDocuments } from "../lib/chat";
 
 interface Message {
   user?: string;
@@ -13,29 +13,20 @@ function ChatUI(): ReactElement {
   const [messages, setMessages] = useState<Message[]>([]);
 
   const handleSend = async () => {
-  if (!input.trim()) return;
+    if (!input.trim()) return;
 
-  // Guardar mensaje del usuario
-  setMessages((prev) => [...prev, { user: input }]);
+    const userMessage = input.trim();
+    setMessages((prev) => [...prev, { user: userMessage }]);
+    setInput("");
 
-  try {
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: input }),
-    });
-
-    const data = await res.json();
-
-    // Guardar respuesta del agente
-    setMessages((prev) => [...prev, { agent: data.answer }]);
-  } catch {
-    setMessages((prev) => [...prev, { agent: "Error al consultar el backend." }]);
-  }
-
-  setInput("");
-};
-
+    try {
+      const answer = await answerQueryFromDocuments(userMessage);
+      setMessages((prev) => [...prev, { agent: answer }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error al consultar el backend.";
+      setMessages((prev) => [...prev, { agent: message }]);
+    }
+  };
 
   return (
     <Box sx={{ maxWidth: 600, margin: "auto", padding: 3 }}>
