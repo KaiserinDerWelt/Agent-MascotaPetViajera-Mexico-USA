@@ -1,6 +1,12 @@
+import * as pdfjsLib from "pdfjs-dist";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url,
+).toString();
+
 export async function readPDF(file: File): Promise<string> {
   const data = await file.arrayBuffer();
-  const pdfjsLib = await import("pdfjs-dist");
   const pdf = await pdfjsLib.getDocument({ data }).promise;
 
   let text = "";

@@ -1,39 +1,33 @@
 import { useState } from "react";
 import { Button } from "@mui/material";
-//import { readPDF } from "../lib/pdf";
-//import { uploadDocs } from "../lib/uploadDocs";
+import { readPDF } from "../lib/pdf";
+import { uploadDocs } from "../lib/uploadDocs";
 
 function PDFUploader() {
   const [loading, setLoading] = useState(false);
 
- async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-  const file = e.target.files?.[0];
-  if (!file) return;
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  setLoading(true);
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const res = await fetch("/api/uploadPDF", {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await res.json();
-    if (res.ok) {
-      alert(data.message);
-    } else {
-      alert("Error al procesar el PDF");
+    if (file.type !== "application/pdf") {
+      alert("Selecciona un archivo PDF válido");
+      return;
     }
-  } catch (err) {
-    alert("Error al enviar el archivo");
-    console.error(err);
-  } finally {
-    setLoading(false);
-  }
-}
 
+    setLoading(true);
+    try {
+      const text = await readPDF(file);
+      await uploadDocs([text]);
+      alert("PDF procesado y guardado ✅");
+    } catch (err) {
+      console.error(err);
+      const message = err instanceof Error ? err.message : "Error al procesar el PDF";
+      alert(message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div>
