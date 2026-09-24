@@ -1,31 +1,39 @@
 import { useState } from "react";
 import { Button } from "@mui/material";
-import { readPDF } from "../lib/pdf";
-import { uploadDocs } from "../lib/uploadDocs";
+//import { readPDF } from "../lib/pdf";
+//import { uploadDocs } from "../lib/uploadDocs";
 
 function PDFUploader() {
   const [loading, setLoading] = useState(false);
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+ async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    setLoading(true);
-    try {
-      // Leer PDF y convertirlo en texto
-      const text = await readPDF(file);
+  setLoading(true);
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
 
-      // Subir a Supabase con embeddings
-      await uploadDocs([text]);
+    const res = await fetch("/api/uploadPDF", {
+      method: "POST",
+      body: formData,
+    });
 
-      alert("PDF cargado en Supabase ✅");
-    } catch (err) {
+    const data = await res.json();
+    if (res.ok) {
+      alert(data.message);
+    } else {
       alert("Error al procesar el PDF");
-      console.error(err);
-    } finally {
-      setLoading(false);
     }
+  } catch (err) {
+    alert("Error al enviar el archivo");
+    console.error(err);
+  } finally {
+    setLoading(false);
   }
+}
+
 
   return (
     <div>
