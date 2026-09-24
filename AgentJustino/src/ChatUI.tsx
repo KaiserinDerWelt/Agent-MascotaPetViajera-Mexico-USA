@@ -43,14 +43,46 @@ function ChatUI(): ReactElement {
           maxHeight: 320,
           mb: 2,
           overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 1.5,
         }}
       >
-        {messages.map((msg, i) => (
-          <Typography key={i} sx={{ mb: 1, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-            {msg.user && <strong>Tú:</strong>} {msg.user}
-            {msg.agent && <strong> Justino:</strong>} {msg.agent}
-          </Typography>
-        ))}
+        {messages.map((msg, i) => {
+          const isUser = Boolean(msg.user);
+          const text = msg.user ?? msg.agent ?? "";
+
+          return (
+            <Box
+              key={i}
+              sx={{
+                display: "flex",
+                justifyContent: isUser ? "flex-end" : "flex-start",
+              }}
+            >
+              <Box
+                sx={{
+                  maxWidth: "80%",
+                  px: 2,
+                  py: 1.25,
+                  borderRadius: 3,
+                  backgroundColor: isUser ? "#006837" : "#E9F5EE",
+                  color: isUser ? "#fff" : "#1F2937",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, opacity: isUser ? 0.9 : 1 }}>
+                  {isUser ? "Tú" : "Justino"}
+                </Typography>
+                <Typography variant="body2" sx={{ lineHeight: 1.5 }}>
+                  {text}
+                </Typography>
+              </Box>
+            </Box>
+          );
+        })}
       </Paper>
 
       <Box sx={{ display: "flex" }}>
