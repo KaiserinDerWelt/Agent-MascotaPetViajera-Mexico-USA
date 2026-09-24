@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from "react";
 import { Box, Typography, TextField, Button, Paper } from "@mui/material";
 import senasicaLogo from "./assets/senasica-logo.png";
-
+import { answerQueryFromDocuments } from "../lib/chat";
 
 interface Message {
   user?: string;
@@ -12,11 +12,20 @@ function ChatUI(): ReactElement {
   const [input, setInput] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
-    const response = `Respuesta de Justino: ${input}`;
-    setMessages([...messages, { user: input }, { agent: response }]);
+
+    const userMessage = input.trim();
+    setMessages((prev) => [...prev, { user: userMessage }]);
     setInput("");
+
+    try {
+      const answer = await answerQueryFromDocuments(userMessage);
+      setMessages((prev) => [...prev, { agent: answer }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error al consultar el backend.";
+      setMessages((prev) => [...prev, { agent: message }]);
+    }
   };
 
   return (

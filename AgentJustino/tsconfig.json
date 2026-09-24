@@ -3,14 +3,17 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
     "esModuleInterop": true,
     "strict": true,
     "jsx": "react-jsx",
     "allowJs": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "types": ["node"]
   },
-  "include": ["src", "api"],
+  "include": ["src", "api", "lib", "env.d.ts", "types.d.ts"],
   "exclude": ["node_modules"]
 }
+
