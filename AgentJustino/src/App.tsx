@@ -1,12 +1,19 @@
-import React from "react";
+import { Box, Divider } from "@mui/material";
+import PDFUploader from "./PDFUploader";
 import ChatUI from "./ChatUI";
 
-function App(): JSX.Element {
+function MainPage() {
   return (
-    <div>
+    <Box sx={{ maxWidth: 800, margin: "auto", padding: 3 }}>
+      {/* Sección de carga de PDFs */}
+      <PDFUploader />
+
+      <Divider sx={{ my: 4 }} />
+
+      {/* Sección de chat con Justino */}
       <ChatUI />
-    </div>
+    </Box>
   );
 }
 
-export default App;
+export default MainPage;
