@@ -1,6 +1,6 @@
 import { generateEmbedding } from "./embeddings";
-import { supabase } from "./supabase";
-import { hf } from "./huggingface";
+import { ensureSupabaseConfigured, supabase } from "./supabase";
+import { ensureHfConfigured } from "./huggingface";
 
 export async function answerQueryFromDocuments(query: string): Promise<string> {
   const cleanedQuery = query.trim();
@@ -10,8 +10,9 @@ export async function answerQueryFromDocuments(query: string): Promise<string> {
   }
 
   const embedding = await generateEmbedding(cleanedQuery);
+  const supabaseClient = ensureSupabaseConfigured();
 
-  const { data, error } = await supabase.rpc("match_documents", {
+  const { data, error } = await supabaseClient.rpc("match_documents", {
     query_embedding: embedding,
     match_count: 3,
   });
@@ -29,6 +30,7 @@ export async function answerQueryFromDocuments(query: string): Promise<string> {
   const context = matches.map((entry) => entry.content).join("\n\n");
 
   try {
+    const hf = ensureHfConfigured();
     const completion = await hf.textGeneration({
       model: "tiiuae/falcon-7b-instruct",
       inputs: `Pregunta: ${cleanedQuery}\n\nContexto:\n${context}\n\nResponde como un asistente institucional de SENASICA, usando solo la información del contexto y responde de forma clara y breve.`,

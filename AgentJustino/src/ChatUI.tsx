@@ -36,9 +36,17 @@ function ChatUI(): ReactElement {
       </Box>
       <Box> <p style={{ marginLeft: "auto", fontStyle: "italic" }}>Tu asistente virtual de transporte de perros en SENASICA</p></Box>
 
-      <Paper sx={{ p: 2, minHeight: 200, mb: 2 }}>
+      <Paper
+        sx={{
+          p: 2,
+          minHeight: 200,
+          maxHeight: 320,
+          mb: 2,
+          overflowY: "auto",
+        }}
+      >
         {messages.map((msg, i) => (
-          <Typography key={i} sx={{ mb: 1 }}>
+          <Typography key={i} sx={{ mb: 1, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {msg.user && <strong>Tú:</strong>} {msg.user}
             {msg.agent && <strong> Justino:</strong>} {msg.agent}
           </Typography>

@@ -1,4 +1,4 @@
-import { hf } from "./huggingface";
+import { ensureHfConfigured } from "./huggingface";
 
 function normalizeEmbedding(value: unknown): number[] {
   if (Array.isArray(value)) {
@@ -15,6 +15,7 @@ function normalizeEmbedding(value: unknown): number[] {
 }
 
 export async function generateEmbedding(text: string) {
+  const hf = ensureHfConfigured();
   const embedding = await hf.featureExtraction({
     model: "sentence-transformers/all-MiniLM-L6-v2",
     inputs: text,

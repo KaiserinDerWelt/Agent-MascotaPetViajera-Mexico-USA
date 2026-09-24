@@ -1,5 +1,5 @@
-import { supabase } from "./supabase";
-import { hf } from "./huggingface";
+import { ensureSupabaseConfigured, supabase } from "./supabase";
+import { ensureHfConfigured } from "./huggingface";
 
 function normalizeEmbedding(value: unknown): number[] {
   if (Array.isArray(value)) {
@@ -16,6 +16,9 @@ function normalizeEmbedding(value: unknown): number[] {
 }
 
 export async function uploadDocs(docs: string[]) {
+  const hf = ensureHfConfigured();
+  const supabaseClient = ensureSupabaseConfigured();
+
   for (const doc of docs) {
     if (!doc || !doc.trim()) {
       throw new Error("El PDF no tiene contenido extraíble");
@@ -39,7 +42,7 @@ export async function uploadDocs(docs: string[]) {
       throw new Error("El embedding generado está vacío");
     }
 
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseClient
       .from("documents")
       .insert({
         content: doc,
