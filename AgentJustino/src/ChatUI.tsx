@@ -90,9 +90,15 @@ function ChatUI(): ReactElement {
           fullWidth
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void handleSend();
+            }
+          }}
           placeholder="Escribe tu consulta..."
         />
-        <Button variant="contained" color="primary" onClick={handleSend} sx={{ ml: 1 }}>
+        <Button variant="contained" color="primary" onClick={() => void handleSend()} sx={{ ml: 1 }}>
           Enviar
         </Button>
       </Box>
