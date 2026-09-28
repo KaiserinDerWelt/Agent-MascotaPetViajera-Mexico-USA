@@ -1,4 +1,5 @@
 import { generateEmbedding } from "./embeddings";
+import { splitTextIntoChunks } from "./chunking";
 import { ensureSupabaseConfigured } from "./supabase";
 import { ensureHfConfigured } from "./huggingface";
 
@@ -105,25 +106,74 @@ function rankMatches(query: string, matches: Array<{ content: string }>) {
   });
 }
 
+function expandMatchesIntoChunks(matches: Array<{ content: string }>): Array<{ content: string }> {
+  const expanded: Array<{ content: string }> = [];
+
+  for (const match of matches) {
+    const content = normalizeMatchContent(match.content);
+    if (!content) continue;
+
+    const chunks = splitTextIntoChunks(content, 600, 80);
+    if (chunks.length > 0) {
+      expanded.push(...chunks.map((chunk) => ({ content: chunk })));
+      continue;
+    }
+
+    expanded.push({ content });
+  }
+
+  return [...new Set(expanded.map((item) => item.content))].map((content) => ({ content }));
+}
+
+function normalizeMatchContent(content: string): string {
+  return content
+    .replace(/Hoja\s+\d+\s+de\s+\d+.*$/gi, " ")
+    .replace(/Direcci[oó]n General de Salud Animal.*$/gi, " ")
+    .replace(/Publicaciones Recientes.*$/gi, " ")
+    .replace(/Servicio Nacional de Sanidad, Inocuidad y Calidad Agroalimentaria.*$/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function dedupeMatches(matches: Array<{ content: string }>): Array<{ content: string }> {
+  const seen = new Set<string>();
+  const output: Array<{ content: string }> = [];
+
+  for (const match of matches) {
+    const normalized = normalizeMatchContent(match.content);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    output.push({ ...match, content: normalized });
+  }
+
+  return output;
+}
+
 function summarizeEvidence(matches: Array<{ content: string }>, maxLength = 220): string {
   const uniqueTexts = [...new Set(
     matches
-      .map((match) => match.content.replace(/\s+/g, " ").trim())
-      .filter(Boolean),
+      .map((match) => normalizeMatchContent(match.content))
+      .filter((text) => text.length > 80),
   )];
 
   const summary = uniqueTexts
     .slice(0, 2)
-    .map((text) => (text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text))
+    .map((text) => {
+      const clipped = text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text;
+      return clipped.replace(/\s+([,.;:!?])/g, "$1");
+    })
     .join(" ");
 
   return summary.length > maxLength ? `${summary.slice(0, maxLength).trim()}...` : summary;
 }
 
 function buildGroundedFallbackAnswer(matches: Array<{ content: string }>): string {
-  const evidence = matches
-    .map((match) => match.content.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
+  const evidence = dedupeMatches(matches)
+    .map((match) => normalizeMatchContent(match.content))
+    .filter((text) => text.length > 80)
     .slice(0, 2)
     .join(" ");
 
@@ -235,13 +285,14 @@ export async function answerQueryFromDocuments(query: string): Promise<string> {
     throw new Error(`No pude consultar los documentos: ${error.message}`);
   }
 
-  const matches = (data ?? []) as Array<{ content: string }>;
+  const matches = dedupeMatches((data ?? []) as Array<{ content: string }>);
 
   if (!matches.length) {
     return "No encontré información relevante en los documentos cargados para responder tu pregunta.";
   }
 
-  const rankedMatches = rankMatches(cleanedQuery, matches).slice(0, 3);
+  const chunkedMatches = expandMatchesIntoChunks(matches);
+  const rankedMatches = rankMatches(cleanedQuery, chunkedMatches).slice(0, 4);
   const context = rankedMatches.map((entry) => entry.content).join("\n\n");
   const configuredModel = (import.meta.env.VITE_HF_ANSWER_MODEL ?? "").trim();
   const chosenModels = configuredModel ? [configuredModel, ...DEFAULT_ANSWER_MODELS.filter((model) => model !== configuredModel)] : DEFAULT_ANSWER_MODELS;
