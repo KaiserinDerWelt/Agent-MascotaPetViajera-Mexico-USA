@@ -1,6 +1,8 @@
 import { HfInference } from "@huggingface/inference";
 
-const hfApiKey = (import.meta.env.VITE_HF_API_KEY ?? "").trim();
+const nodeEnv = typeof process !== "undefined" ? process.env ?? {} : {};
+const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
+const hfApiKey = (viteEnv.VITE_HF_API_KEY ?? nodeEnv.VITE_HF_API_KEY ?? "").trim();
 
 export const hf = hfApiKey ? new HfInference(hfApiKey) : null;
 

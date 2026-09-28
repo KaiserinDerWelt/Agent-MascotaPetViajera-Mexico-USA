@@ -1,11 +1,13 @@
 import { useState, type ReactElement } from "react";
 import { Box, Typography, TextField, Button, Paper } from "@mui/material";
 import senasicaLogo from "./assets/senasica-logo.png";
-import { answerQueryFromDocuments } from "../lib/chat";
+import { answerQueryWithMetadata } from "../lib/chat";
 
 interface Message {
   user?: string;
   agent?: string;
+  source?: "model" | "evidence";
+  fallback?: boolean;
 }
 
 function ChatUI(): ReactElement {
@@ -20,11 +22,11 @@ function ChatUI(): ReactElement {
     setInput("");
 
     try {
-      const answer = await answerQueryFromDocuments(userMessage);
-      setMessages((prev) => [...prev, { agent: answer }]);
+      const result = await answerQueryWithMetadata(userMessage);
+      setMessages((prev) => [...prev, { agent: result.answer, source: result.source, fallback: result.fallback }]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error al consultar el backend.";
-      setMessages((prev) => [...prev, { agent: message }]);
+      setMessages((prev) => [...prev, { agent: message, source: "evidence", fallback: true }]);
     }
   };
 
@@ -79,6 +81,20 @@ function ChatUI(): ReactElement {
                 <Typography variant="body2" sx={{ lineHeight: 1.5 }}>
                   {text}
                 </Typography>
+                {!isUser && msg.source && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: "block",
+                      mt: 0.75,
+                      fontSize: 11,
+                      opacity: 0.8,
+                      color: msg.fallback ? "#8a5b00" : "#0f766e",
+                    }}
+                  >
+                    {msg.fallback ? "Respuesta basada en evidencia (modelo no disponible)" : "Respuesta generada con modelo"}
+                  </Typography>
+                )}
               </Box>
             </Box>
           );
