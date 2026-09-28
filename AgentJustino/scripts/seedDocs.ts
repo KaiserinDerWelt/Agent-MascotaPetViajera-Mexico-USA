@@ -12,11 +12,13 @@ async function seedDocs() {
   });
 
   // 2. Insertar en Supabase
+  const normalized = Array.isArray(embedding) && Array.isArray(embedding[0]) ? embedding[0] : embedding;
+
   const { error } = await supabase
     .from("documents")
     .insert({
       content: text,
-      embedding: embedding[0],
+      embedding: normalized,
     });
 
   if (error) {
