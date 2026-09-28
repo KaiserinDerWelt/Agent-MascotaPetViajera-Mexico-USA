@@ -38,14 +38,34 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       .map((d) => d.content)
       .join("\n");
 
-    // 4. Generar respuesta
+    // 4. Generar respuesta con un prompt más natural y específico para español de México
     const completion = await hf.textGeneration({
-      model: "tiiuae/falcon-7b-instruct",
-      inputs: `Pregunta: ${query}\nContexto:\n${context}\nResponde en tono institucional SENASICA.`,
-      parameters: { max_new_tokens: 200 },
+      model: "microsoft/Phi-3.5-mini-instruct",
+      inputs: [
+        "Eres Justino, un asistente de SENASICA que responde en español de México.",
+        "Usa un tono cercano, claro y útil. Responde solo con la información del contexto y no inventes.",
+        "Si no hay suficiente información, dilo con honestidad. Máximo 4 líneas y sin repetir texto literal del documento.",
+        "",
+        `Contexto:\n${context}`,
+        "",
+        `Pregunta: ${query}`,
+      ].join("\n"),
+      parameters: {
+        max_new_tokens: 180,
+        temperature: 0.5,
+        top_p: 0.9,
+        do_sample: true,
+        repetition_penalty: 1.08,
+        return_full_text: false,
+      },
     });
 
-    res.status(200).json({ answer: completion.generated_text });
+    const answer =
+      typeof completion === "object" && completion && "generated_text" in completion && typeof completion.generated_text === "string"
+        ? completion.generated_text
+        : "";
+
+    res.status(200).json({ answer });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     res.status(500).json({ error: message });

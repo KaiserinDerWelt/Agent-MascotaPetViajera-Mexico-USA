@@ -3,11 +3,11 @@ import { ensureSupabaseConfigured } from "./supabase";
 import { ensureHfConfigured } from "./huggingface";
 
 const DEFAULT_ANSWER_MODELS = [
-  "microsoft/Phi-3.5-mini-instruct",
+  "Qwen/Qwen2.5-7B-Instruct",
+  "meta-llama/Llama-3.1-8B-Instruct",
   "mistralai/Mistral-7B-Instruct-v0.2",
-  "meta-llama/Llama-3.2-3B-Instruct",
-  "google/gemma-2-2b-it",
-  "google/flan-t5-base",
+  "microsoft/Phi-3-mini-4k-instruct",
+  "Qwen/Qwen2.5-3B-Instruct",
 ];
 
 function normalizeGeneratedText(result: unknown): string {
@@ -20,7 +20,11 @@ function normalizeGeneratedText(result: unknown): string {
   }
 
   if (result && typeof result === "object") {
-    const candidate = (result as { generated_text?: unknown; text?: unknown }).generated_text ?? (result as { generated_text?: unknown; text?: unknown }).text;
+    const candidate =
+      (result as { generated_text?: unknown; text?: unknown }).generated_text ??
+      (result as { generated_text?: unknown; text?: unknown }).text ??
+      (result as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0]?.message?.content;
+
     if (typeof candidate === "string") {
       return candidate.trim();
     }
@@ -37,11 +41,34 @@ function sanitizeModelAnswer(answer: string): string {
   return answer
     .replace(/^(respuesta|answer|resumen|summary)\s*[:\-]?\s*/i, "")
     .replace(/^(según\s+el\s+contexto|based\s+on\s+the\s+context|segun\s+el\s+contexto)\s*[:\-]?\s*/i, "")
-    .replace(/^(te\s+puedo\s+decir|te\s+diría|pues|bueno)\s*[:\-]?\s*/i, "")
-    .replace(/\b(contexto|pregunta|informacion|información)\s*[:\-]/gi, "")
+    .replace(/^(te\s+puedo\s+decir|te\s+diría|te\s+diria|pues|bueno|vale|listo)\s*[:\-]?\s*/i, "")
+    .replace(/^justino\s*[:\-]?\s*/i, "")
+    .replace(/\b(contexto|pregunta|informacion|información|documentos|fuente|fuentes)\s*[:\-]/gi, "")
+    .replace(/\b(corrobora|corroborar|verificar|verificado)\b[^.]*[.]/gi, "")
     .replace(/\s+/g, " ")
     .replace(/\s+[.]{2,}\s*$/g, "")
+    .replace(/\s+([,;:.!?])\s*/g, "$1 ")
     .trim();
+}
+
+function buildMexicanSpanishPrompt(context: string, query: string): string {
+  return [
+    "Eres Justino, un asistente de SENASICA que responde en español de México.",
+    "Tu objetivo es ayudar a personas que quieren viajar con mascotas entre México y Estados Unidos.",
+    "Usa un tono cercano, claro, útil y profesional, como si hablaras con una persona real.",
+    "Reglas estrictas:",
+    "1) Usa solo la información del contexto proporcionado.",
+    "2) Si la información no está en el contexto, dilo con honestidad y no inventes.",
+    "3) No copies frases literales del documento ni menciones 'según el contexto'.",
+    "4) Responde en 2 a 4 líneas máximo, con frases naturales y directas.",
+    "5) Si se requieren requisitos, menciona solo los más relevantes y útiles.",
+    "6) Si se comparan casos por país o tipo de viaje, explica la diferencia breve y clara.",
+    "7) No respondas como un resumen largo de un PDF. Responde como un asistente útil.",
+    "",
+    `Contexto:\n${context}`,
+    "",
+    `Pregunta: ${query}`,
+  ].join("\n");
 }
 
 function normalizeTextForScore(value: string): string[] {
@@ -78,13 +105,55 @@ function rankMatches(query: string, matches: Array<{ content: string }>) {
   });
 }
 
-function buildHybridAnswer(matches: Array<{ content: string }>, modelAnswer?: string): string {
-  const fallbackExcerpt = matches[0]?.content
+function summarizeEvidence(matches: Array<{ content: string }>, maxLength = 220): string {
+  const uniqueTexts = [...new Set(
+    matches
+      .map((match) => match.content.replace(/\s+/g, " ").trim())
+      .filter(Boolean),
+  )];
+
+  const summary = uniqueTexts
+    .slice(0, 2)
+    .map((text) => (text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text))
+    .join(" ");
+
+  return summary.length > maxLength ? `${summary.slice(0, maxLength).trim()}...` : summary;
+}
+
+function buildGroundedFallbackAnswer(matches: Array<{ content: string }>): string {
+  const evidence = matches
+    .map((match) => match.content.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(" ");
+
+  if (!evidence) {
+    return "No encontré información relevante en los documentos cargados para responder tu pregunta.";
+  }
+
+  const normalized = evidence
+    .replace(/https?:\/\/[^\s]+/g, "")
+    .replace(/\b(Servicio Nacional de Sanidad, Inocuidad y Calidad Agroalimentaria|Gobierno|SENASICA)\b/gi, "SENASICA")
     .replace(/\s+/g, " ")
     .trim();
 
-  const shortSource = fallbackExcerpt ? (fallbackExcerpt.length > 220 ? `${fallbackExcerpt.slice(0, 220).trim()}...` : fallbackExcerpt) : "";
+  const shortText = normalized.length > 260 ? `${normalized.slice(0, 260).trim()}...` : normalized;
+
+  const sanitizedText = shortText
+    .replace(/\b(\.\s*){2,}\b/g, ". ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+
+  if (/vacuna|rabia|certificado|salud|veterinario/i.test(sanitizedText)) {
+    return `En general, la información indica que para viajar con una mascota es clave revisar los requisitos sanitarios y documentales, como vacunas, certificados veterinarios y cumplimiento de la normativa vigente. Lo más relevante es: ${sanitizedText}`;
+  }
+
+  return `La información más relevante señala que ${sanitizedText}`;
+}
+
+function buildHybridAnswer(matches: Array<{ content: string }>, modelAnswer?: string): string {
   const cleanedAnswer = modelAnswer ? sanitizeModelAnswer(modelAnswer) : "";
+  const evidence = summarizeEvidence(matches);
 
   if (cleanedAnswer) {
     const answerWithoutSource = cleanedAnswer
@@ -93,31 +162,42 @@ function buildHybridAnswer(matches: Array<{ content: string }>, modelAnswer?: st
       .trim();
 
     if (answerWithoutSource) {
-      return answerWithoutSource;
+      return evidence ? `${answerWithoutSource}\n\nEn resumen: ${evidence}` : answerWithoutSource;
     }
   }
 
-  if (shortSource) {
-    return `Según los documentos consultados, la información clave es: ${shortSource}`;
+  if (evidence) {
+    return buildGroundedFallbackAnswer(matches);
   }
 
   return "No encontré información relevante en los documentos cargados para responder tu pregunta.";
 }
 
-async function tryGenerateModelAnswer(hf: { textGeneration: (params: any) => Promise<unknown> }, prompt: string, chosenModels: string[]): Promise<string> {
+async function tryGenerateModelAnswer(
+  hf: { chatCompletion?: (params: any) => Promise<unknown> },
+  prompt: string,
+  chosenModels: string[],
+): Promise<string> {
   for (const modelName of chosenModels) {
     try {
-      const completion = await hf.textGeneration({
+      if (!hf.chatCompletion) {
+        continue;
+      }
+
+      const provider = (import.meta.env.VITE_HF_PROVIDER ?? "featherless-ai").trim() || "featherless-ai";
+      const completion = await hf.chatCompletion({
+        provider,
         model: modelName,
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 180,
-          temperature: 0.5,
-          top_p: 0.9,
-          do_sample: true,
-          repetition_penalty: 1.08,
-          return_full_text: false,
-        },
+        messages: [
+          {
+            role: "system",
+            content: "Eres Justino, un asistente de SENASICA que responde en español de México. Sé breve, claro y útil. No inventes. Usa solo la información disponible en el contexto. Si falta información, dilo con honestidad. Responde en máximo 4 líneas y en un tono natural, cercano y profesional.",
+          },
+          { role: "user", content: prompt },
+        ],
+        max_tokens: 180,
+        temperature: 0.4,
+        top_p: 0.9,
       });
 
       const answer = normalizeGeneratedText(completion);
@@ -127,7 +207,7 @@ async function tryGenerateModelAnswer(hf: { textGeneration: (params: any) => Pro
         return cleanedAnswer;
       }
     } catch (error) {
-      console.warn(`HF model failed for ${modelName}:`, error);
+      console.warn(`HF chatCompletion failed for ${modelName}:`, error);
     }
   }
 
@@ -170,16 +250,16 @@ export async function answerQueryFromDocuments(query: string): Promise<string> {
     const hf = ensureHfConfigured();
     const modelAnswer = await tryGenerateModelAnswer(
       hf,
-      `Eres Justino, un asistente amable y directo de SENASICA, hablando en español mexicano. Responde de forma natural, breve y útil, como si estuvieras hablando con una persona. Usa solo la información del contexto; si no aparece ahí, dilo con honestidad y sin inventar. Evita repetir texto literal del documento y no digas "según el contexto". Hazlo en 2 a 4 líneas, con tono claro y cálido.\n\nContexto:\n${context}\n\nPregunta: ${cleanedQuery}`,
+      buildMexicanSpanishPrompt(context, cleanedQuery),
       chosenModels,
     );
 
     if (modelAnswer) {
       return buildHybridAnswer(rankedMatches, modelAnswer);
     }
-  } catch (error) {
-    console.error("HF generation failed:", error);
+  } catch {
+    // Provider errors are non-fatal: the app should keep responding with grounded RAG content.
   }
 
-  return buildHybridAnswer(rankedMatches);
+  return buildGroundedFallbackAnswer(rankedMatches);
 }
