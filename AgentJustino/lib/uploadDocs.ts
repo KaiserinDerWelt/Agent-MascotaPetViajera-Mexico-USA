@@ -1,5 +1,6 @@
 import { ensureSupabaseConfigured, supabase } from "./supabase";
 import { ensureHfConfigured } from "./huggingface";
+import { splitDocumentsIntoChunks } from "./chunking";
 
 function normalizeEmbedding(value: unknown): number[] {
   if (Array.isArray(value)) {
@@ -18,18 +19,19 @@ function normalizeEmbedding(value: unknown): number[] {
 export async function uploadDocs(docs: string[]) {
   const hf = ensureHfConfigured();
   const supabaseClient = ensureSupabaseConfigured();
+  const chunks = splitDocumentsIntoChunks(docs);
 
-  for (const doc of docs) {
-    if (!doc || !doc.trim()) {
-      throw new Error("El PDF no tiene contenido extraíble");
-    }
+  if (!chunks.length) {
+    throw new Error("El PDF no tiene contenido extraíble");
+  }
 
+  for (const chunk of chunks) {
     let vector: number[];
 
     try {
       const embedding = await hf.featureExtraction({
         model: "sentence-transformers/all-MiniLM-L6-v2",
-        inputs: doc,
+        inputs: chunk,
       });
 
       vector = normalizeEmbedding(embedding);
@@ -45,7 +47,7 @@ export async function uploadDocs(docs: string[]) {
     const { error: insertError } = await supabaseClient
       .from("documents")
       .insert({
-        content: doc,
+        content: chunk,
         embedding: vector,
       });
 

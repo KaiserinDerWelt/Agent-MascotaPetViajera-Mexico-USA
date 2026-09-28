@@ -36,10 +36,46 @@ function normalizeGeneratedText(result: unknown): string {
 function sanitizeModelAnswer(answer: string): string {
   return answer
     .replace(/^(respuesta|answer|resumen|summary)\s*[:\-]?\s*/i, "")
-    .replace(/^(según\s+el\s+contexto|based\s+on\s+the\s+context)\s*[:\-]?\s*/i, "")
-    .replace(/\b(contexto|pregunta)\s*[:\-]/gi, "")
+    .replace(/^(según\s+el\s+contexto|based\s+on\s+the\s+context|segun\s+el\s+contexto)\s*[:\-]?\s*/i, "")
+    .replace(/^(te\s+puedo\s+decir|te\s+diría|pues|bueno)\s*[:\-]?\s*/i, "")
+    .replace(/\b(contexto|pregunta|informacion|información)\s*[:\-]/gi, "")
     .replace(/\s+/g, " ")
+    .replace(/\s+[.]{2,}\s*$/g, "")
     .trim();
+}
+
+function normalizeTextForScore(value: string): string[] {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length > 2);
+}
+
+function scoreMatchRelevance(query: string, content: string): number {
+  const queryTokens = normalizeTextForScore(query);
+  const contentTokens = normalizeTextForScore(content);
+  const contentSet = new Set(contentTokens);
+
+  if (!queryTokens.length || !contentTokens.length) {
+    return 0;
+  }
+
+  const overlap = queryTokens.filter((token) => contentSet.has(token)).length;
+  const keywordRatio = overlap / Math.max(queryTokens.length, 1);
+  const contentLengthBonus = Math.min(contentTokens.length / 120, 1.5);
+
+  return keywordRatio * 10 + overlap + contentLengthBonus;
+}
+
+function rankMatches(query: string, matches: Array<{ content: string }>) {
+  return [...matches].sort((a, b) => {
+    const scoreA = scoreMatchRelevance(query, a.content);
+    const scoreB = scoreMatchRelevance(query, b.content);
+    return scoreB - scoreA;
+  });
 }
 
 function buildHybridAnswer(matches: Array<{ content: string }>, modelAnswer?: string): string {
@@ -51,7 +87,14 @@ function buildHybridAnswer(matches: Array<{ content: string }>, modelAnswer?: st
   const cleanedAnswer = modelAnswer ? sanitizeModelAnswer(modelAnswer) : "";
 
   if (cleanedAnswer) {
-    return `${cleanedAnswer} Se puede corroborar con los documentos: ${shortSource}`;
+    const answerWithoutSource = cleanedAnswer
+      .replace(/\s+(Se puede corroborar con los documentos|Puedes corroborarlo con los documentos|Esto se puede verificar en los documentos|La información se encuentra en los documentos)[^.]*(\.|$)/gi, "")
+      .replace(/\s+\.+\s*$/g, "")
+      .trim();
+
+    if (answerWithoutSource) {
+      return answerWithoutSource;
+    }
   }
 
   if (shortSource) {
@@ -69,9 +112,10 @@ async function tryGenerateModelAnswer(hf: { textGeneration: (params: any) => Pro
         inputs: prompt,
         parameters: {
           max_new_tokens: 180,
-          temperature: 0.3,
+          temperature: 0.5,
           top_p: 0.9,
-          do_sample: false,
+          do_sample: true,
+          repetition_penalty: 1.08,
           return_full_text: false,
         },
       });
@@ -100,8 +144,10 @@ export async function answerQueryFromDocuments(query: string): Promise<string> {
   const embedding = await generateEmbedding(cleanedQuery);
   const supabaseClient = ensureSupabaseConfigured();
 
+  const queryEmbedding = Array.isArray(embedding?.[0]) ? embedding[0] : embedding;
+
   const { data, error } = await supabaseClient.rpc("match_documents", {
-    query_embedding: embedding,
+    query_embedding: queryEmbedding,
     match_count: 3,
   });
 
@@ -115,7 +161,8 @@ export async function answerQueryFromDocuments(query: string): Promise<string> {
     return "No encontré información relevante en los documentos cargados para responder tu pregunta.";
   }
 
-  const context = matches.map((entry) => entry.content).join("\n\n");
+  const rankedMatches = rankMatches(cleanedQuery, matches).slice(0, 3);
+  const context = rankedMatches.map((entry) => entry.content).join("\n\n");
   const configuredModel = (import.meta.env.VITE_HF_ANSWER_MODEL ?? "").trim();
   const chosenModels = configuredModel ? [configuredModel, ...DEFAULT_ANSWER_MODELS.filter((model) => model !== configuredModel)] : DEFAULT_ANSWER_MODELS;
 
@@ -123,16 +170,16 @@ export async function answerQueryFromDocuments(query: string): Promise<string> {
     const hf = ensureHfConfigured();
     const modelAnswer = await tryGenerateModelAnswer(
       hf,
-      `Eres Justino, un asistente institucional de SENASICA. Responde con una respuesta breve, clara y útil. Usa únicamente la información del contexto y no inventes datos. Si no está en el contexto, dilo de forma honesta.\n\nContexto:\n${context}\n\nPregunta: ${cleanedQuery}`,
+      `Eres Justino, un asistente amable y directo de SENASICA, hablando en español mexicano. Responde de forma natural, breve y útil, como si estuvieras hablando con una persona. Usa solo la información del contexto; si no aparece ahí, dilo con honestidad y sin inventar. Evita repetir texto literal del documento y no digas "según el contexto". Hazlo en 2 a 4 líneas, con tono claro y cálido.\n\nContexto:\n${context}\n\nPregunta: ${cleanedQuery}`,
       chosenModels,
     );
 
     if (modelAnswer) {
-      return buildHybridAnswer(matches, modelAnswer);
+      return buildHybridAnswer(rankedMatches, modelAnswer);
     }
   } catch (error) {
     console.error("HF generation failed:", error);
   }
 
-  return buildHybridAnswer(matches);
+  return buildHybridAnswer(rankedMatches);
 }
