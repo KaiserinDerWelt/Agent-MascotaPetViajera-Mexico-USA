@@ -1,5 +1,5 @@
 // Creation of serverless functions for the API endpoints of the chat application
-import { supabase } from "../lib/supabase";
+import { ensureSupabaseConfigured } from "../lib/supabase";
 import { HfInference } from "@huggingface/inference";
 
 type ApiRequest = {
@@ -14,12 +14,18 @@ type ApiResponse = {
   };
 };
 
-const hf = new HfInference(process.env.HF_API_KEY!);
-
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const query = typeof req.body?.query === "string" ? req.body.query : "";
 
   try {
+    const hfApiKey = (process.env.HF_API_KEY ?? process.env.VITE_HF_API_KEY ?? "").trim();
+    if (!hfApiKey) {
+      throw new Error("Falta la configuración de Hugging Face. Revisa HF_API_KEY o VITE_HF_API_KEY.");
+    }
+
+    const hf = new HfInference(hfApiKey);
+    const supabaseClient = ensureSupabaseConfigured();
+
     // 1. Embedding de la consulta
     const embedding = await hf.featureExtraction({
       model: "sentence-transformers/all-MiniLM-L6-v2",
@@ -27,7 +33,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     });
 
     // 2. Buscar documentos similares
-    const { data, error } = await supabase.rpc("match_documents", {
+    const { data, error } = await supabaseClient.rpc("match_documents", {
       query_embedding: embedding[0],
       match_count: 3,
     });

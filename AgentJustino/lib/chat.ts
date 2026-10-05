@@ -98,7 +98,12 @@ function scoreMatchRelevance(query: string, content: string): number {
   return keywordRatio * 10 + overlap + contentLengthBonus;
 }
 
-function rankMatches(query: string, matches: Array<{ content: string }>) {
+type RankableMatch = {
+  id?: number | string;
+  content: string;
+};
+
+function rankMatches(query: string, matches: RankableMatch[]) {
   return [...matches].sort((a, b) => {
     const scoreA = scoreMatchRelevance(query, a.content);
     const scoreB = scoreMatchRelevance(query, b.content);
@@ -106,8 +111,8 @@ function rankMatches(query: string, matches: Array<{ content: string }>) {
   });
 }
 
-function expandMatchesIntoChunks(matches: Array<{ content: string }>): Array<{ content: string }> {
-  const expanded: Array<{ content: string }> = [];
+function expandMatchesIntoChunks(matches: RankableMatch[]): RankableMatch[] {
+  const expanded: RankableMatch[] = [];
 
   for (const match of matches) {
     const content = normalizeMatchContent(match.content);
@@ -115,14 +120,19 @@ function expandMatchesIntoChunks(matches: Array<{ content: string }>): Array<{ c
 
     const chunks = splitTextIntoChunks(content, 600, 80);
     if (chunks.length > 0) {
-      expanded.push(...chunks.map((chunk) => ({ content: chunk })));
+      expanded.push(...chunks.map((chunk) => ({ id: match.id, content: chunk })));
       continue;
     }
 
-    expanded.push({ content });
+    expanded.push({ id: match.id, content });
   }
 
-  return [...new Set(expanded.map((item) => item.content))].map((content) => ({ content }));
+  return [...new Set(expanded.map((item) => `${item.id ?? "no-id"}:${item.content}`))]
+    .map((entry) => {
+      const [idPart, ...contentParts] = entry.split(":");
+      const id = idPart === "no-id" ? undefined : idPart;
+      return { id, content: contentParts.join(":") };
+    });
 }
 
 function normalizeMatchContent(content: string): string {
@@ -135,9 +145,9 @@ function normalizeMatchContent(content: string): string {
     .trim();
 }
 
-function dedupeMatches(matches: Array<{ content: string }>): Array<{ content: string }> {
+function dedupeMatches(matches: RankableMatch[]): RankableMatch[] {
   const seen = new Set<string>();
-  const output: Array<{ content: string }> = [];
+  const output: RankableMatch[] = [];
 
   for (const match of matches) {
     const normalized = normalizeMatchContent(match.content);
@@ -223,94 +233,193 @@ function buildHybridAnswer(matches: Array<{ content: string }>, modelAnswer?: st
   return "No encontré información relevante en los documentos cargados para responder tu pregunta.";
 }
 
+function getHfProviderCandidates(): string[] {
+  const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
+  const nodeEnv = typeof process !== "undefined" ? process.env ?? {} : {};
+  const configuredProvider = (viteEnv.VITE_HF_PROVIDER ?? nodeEnv.VITE_HF_PROVIDER ?? "").trim();
+
+  const candidates = [configuredProvider, "hf-inference", "featherless-ai"].filter((provider): provider is string => Boolean(provider && provider.trim()));
+  return [...new Set(candidates)];
+}
+
 async function tryGenerateModelAnswer(
   hf: { chatCompletion?: (params: any) => Promise<unknown> },
   prompt: string,
   chosenModels: string[],
 ): Promise<string> {
+  const requestTimeoutMs = 15000;
+  const providerCandidates = getHfProviderCandidates();
+
   for (const modelName of chosenModels) {
-    try {
-      if (!hf.chatCompletion) {
-        continue;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        if (!hf.chatCompletion) {
+          continue;
+        }
+
+        const provider = providerCandidates[attempt % providerCandidates.length] ?? "hf-inference";
+        const request = () =>
+          hf.chatCompletion({
+            ...(provider ? { provider } : {}),
+            model: modelName,
+            messages: [
+              {
+                role: "system",
+                content: "Eres Justino, un asistente de SENASICA que responde en español de México. Sé breve, claro y útil. No inventes. Usa solo la información disponible en el contexto. Si falta información, dilo con honestidad. Responde en máximo 4 líneas y en un tono natural, cercano y profesional.",
+              },
+              { role: "user", content: prompt },
+            ],
+            max_tokens: 180,
+            temperature: 0.4,
+            top_p: 0.9,
+          });
+
+        const completion = await Promise.race([
+          request(),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`HF timeout for ${modelName}`)), requestTimeoutMs);
+          }),
+        ]);
+
+        const answer = normalizeGeneratedText(completion);
+        const cleanedAnswer = answer ? sanitizeModelAnswer(answer) : "";
+
+        if (cleanedAnswer && cleanedAnswer.length > 0) {
+          return cleanedAnswer;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const isProviderIssue = /(provider|unsupported|invalid|not available|bad request|403|429|network)/i.test(message);
+        console.warn(`HF chatCompletion failed for ${modelName} (attempt ${attempt + 1}, provider: ${providerCandidates[attempt % providerCandidates.length] ?? "default"}):`, message);
+
+        if (attempt === 0 && isProviderIssue) {
+          continue;
+        }
+
+        if (attempt === 0) {
+          continue;
+        }
       }
-
-      const provider = (import.meta.env.VITE_HF_PROVIDER ?? "featherless-ai").trim() || "featherless-ai";
-      const completion = await hf.chatCompletion({
-        provider,
-        model: modelName,
-        messages: [
-          {
-            role: "system",
-            content: "Eres Justino, un asistente de SENASICA que responde en español de México. Sé breve, claro y útil. No inventes. Usa solo la información disponible en el contexto. Si falta información, dilo con honestidad. Responde en máximo 4 líneas y en un tono natural, cercano y profesional.",
-          },
-          { role: "user", content: prompt },
-        ],
-        max_tokens: 180,
-        temperature: 0.4,
-        top_p: 0.9,
-      });
-
-      const answer = normalizeGeneratedText(completion);
-      const cleanedAnswer = answer ? sanitizeModelAnswer(answer) : "";
-
-      if (cleanedAnswer && cleanedAnswer.length > 0) {
-        return cleanedAnswer;
-      }
-    } catch (error) {
-      console.warn(`HF chatCompletion failed for ${modelName}:`, error);
     }
   }
 
   return "";
 }
 
-export async function answerQueryFromDocuments(query: string): Promise<string> {
+export type AnswerQueryResult = {
+  answer: string;
+  source: "model" | "evidence";
+  usedModel: boolean;
+  fallback: boolean;
+  chunkIds: Array<number | string>;
+};
+
+export async function answerQueryWithMetadata(query: string): Promise<AnswerQueryResult> {
   const cleanedQuery = query.trim();
 
   if (!cleanedQuery) {
     throw new Error("La pregunta está vacía");
   }
 
-  const embedding = await generateEmbedding(cleanedQuery);
-  const supabaseClient = ensureSupabaseConfigured();
-
-  const queryEmbedding = Array.isArray(embedding?.[0]) ? embedding[0] : embedding;
-
-  const { data, error } = await supabaseClient.rpc("match_documents", {
-    query_embedding: queryEmbedding,
-    match_count: 3,
-  });
-
-  if (error) {
-    throw new Error(`No pude consultar los documentos: ${error.message}`);
-  }
-
-  const matches = dedupeMatches((data ?? []) as Array<{ content: string }>);
-
-  if (!matches.length) {
-    return "No encontré información relevante en los documentos cargados para responder tu pregunta.";
-  }
-
-  const chunkedMatches = expandMatchesIntoChunks(matches);
-  const rankedMatches = rankMatches(cleanedQuery, chunkedMatches).slice(0, 4);
-  const context = rankedMatches.map((entry) => entry.content).join("\n\n");
-  const configuredModel = (import.meta.env.VITE_HF_ANSWER_MODEL ?? "").trim();
-  const chosenModels = configuredModel ? [configuredModel, ...DEFAULT_ANSWER_MODELS.filter((model) => model !== configuredModel)] : DEFAULT_ANSWER_MODELS;
-
   try {
-    const hf = ensureHfConfigured();
-    const modelAnswer = await tryGenerateModelAnswer(
-      hf,
-      buildMexicanSpanishPrompt(context, cleanedQuery),
-      chosenModels,
-    );
+    const embedding = await generateEmbedding(cleanedQuery);
+    const supabaseClient = ensureSupabaseConfigured();
 
-    if (modelAnswer) {
-      return buildHybridAnswer(rankedMatches, modelAnswer);
+    const queryEmbedding = Array.isArray(embedding?.[0]) ? embedding[0] : embedding;
+
+    const { data, error } = await supabaseClient.rpc("match_documents", {
+      query_embedding: queryEmbedding,
+      match_count: 3,
+    });
+
+    if (error) {
+      console.warn("Supabase match_documents failed:", error);
+      return {
+        answer: "No pude consultar la base documental en este momento. Intenta nuevamente en unos segundos.",
+        source: "evidence",
+        usedModel: false,
+        fallback: true,
+        chunkIds: [],
+      };
     }
-  } catch {
-    // Provider errors are non-fatal: the app should keep responding with grounded RAG content.
-  }
 
-  return buildGroundedFallbackAnswer(rankedMatches);
+    const rawMatches = (data ?? []) as RankableMatch[];
+    const matches = dedupeMatches(rawMatches);
+
+    if (!matches.length) {
+      return {
+        answer: "No encontré información relevante en los documentos cargados para responder tu pregunta.",
+        source: "evidence",
+        usedModel: false,
+        fallback: true,
+        chunkIds: [],
+      };
+    }
+
+    const chunkedMatches = expandMatchesIntoChunks(matches);
+    const rankedMatches = rankMatches(cleanedQuery, chunkedMatches).slice(0, 4);
+    const context = rankedMatches.map((entry) => entry.content).join("\n\n");
+    const topChunkIds = rankedMatches.map((entry) => entry.id).filter((id): id is number | string => id !== undefined);
+    const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
+    const nodeEnv = typeof process !== "undefined" ? process.env ?? {} : {};
+    const configuredModel = (viteEnv.VITE_HF_ANSWER_MODEL ?? nodeEnv.VITE_HF_ANSWER_MODEL ?? "").trim();
+    const chosenModels = configuredModel ? [configuredModel, ...DEFAULT_ANSWER_MODELS.filter((model) => model !== configuredModel)] : DEFAULT_ANSWER_MODELS;
+
+    try {
+      const hf = ensureHfConfigured();
+      const modelAnswer = await tryGenerateModelAnswer(
+        hf,
+        buildMexicanSpanishPrompt(context, cleanedQuery),
+        chosenModels,
+      );
+
+      if (modelAnswer) {
+        const finalAnswer = buildHybridAnswer(rankedMatches, modelAnswer);
+        console.info("RAG answer with model", {
+          query: cleanedQuery,
+          chunkIds: topChunkIds,
+          source: "model",
+        });
+        return {
+          answer: finalAnswer,
+          source: "model",
+          usedModel: true,
+          fallback: false,
+          chunkIds: topChunkIds,
+        };
+      }
+    } catch {
+      // Provider errors are non-fatal: the app should keep responding with grounded RAG content.
+    }
+
+    const groundedAnswer = buildGroundedFallbackAnswer(rankedMatches);
+    console.info("RAG answer fallback to evidence", {
+      query: cleanedQuery,
+      chunkIds: topChunkIds,
+      source: "evidence",
+    });
+
+    return {
+      answer: groundedAnswer,
+      source: "evidence",
+      usedModel: false,
+      fallback: true,
+      chunkIds: topChunkIds,
+    };
+  } catch (error) {
+    console.warn("answerQueryWithMetadata failed; using safe fallback response:", error);
+
+    return {
+      answer: "No pude responder en este momento porque la conexión con la base documental o el modelo no está disponible. Intenta nuevamente en unos segundos.",
+      source: "evidence",
+      usedModel: false,
+      fallback: true,
+      chunkIds: [],
+    };
+  }
+}
+
+export async function answerQueryFromDocuments(query: string): Promise<string> {
+  const result = await answerQueryWithMetadata(query);
+  return result.answer;
 }
