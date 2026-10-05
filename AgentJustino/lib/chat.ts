@@ -233,12 +233,22 @@ function buildHybridAnswer(matches: Array<{ content: string }>, modelAnswer?: st
   return "No encontré información relevante en los documentos cargados para responder tu pregunta.";
 }
 
+function getHfProviderCandidates(): string[] {
+  const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
+  const nodeEnv = typeof process !== "undefined" ? process.env ?? {} : {};
+  const configuredProvider = (viteEnv.VITE_HF_PROVIDER ?? nodeEnv.VITE_HF_PROVIDER ?? "").trim();
+
+  const candidates = [configuredProvider, "hf-inference", "featherless-ai"].filter((provider): provider is string => Boolean(provider && provider.trim()));
+  return [...new Set(candidates)];
+}
+
 async function tryGenerateModelAnswer(
   hf: { chatCompletion?: (params: any) => Promise<unknown> },
   prompt: string,
   chosenModels: string[],
 ): Promise<string> {
   const requestTimeoutMs = 15000;
+  const providerCandidates = getHfProviderCandidates();
 
   for (const modelName of chosenModels) {
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -247,12 +257,10 @@ async function tryGenerateModelAnswer(
           continue;
         }
 
-        const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
-        const nodeEnv = typeof process !== "undefined" ? process.env ?? {} : {};
-        const provider = (viteEnv.VITE_HF_PROVIDER ?? nodeEnv.VITE_HF_PROVIDER ?? "featherless-ai").trim() || "featherless-ai";
+        const provider = providerCandidates[attempt % providerCandidates.length] ?? "hf-inference";
         const request = () =>
           hf.chatCompletion({
-            provider,
+            ...(provider ? { provider } : {}),
             model: modelName,
             messages: [
               {
@@ -280,7 +288,14 @@ async function tryGenerateModelAnswer(
           return cleanedAnswer;
         }
       } catch (error) {
-        console.warn(`HF chatCompletion failed for ${modelName} (attempt ${attempt + 1}):`, error);
+        const message = error instanceof Error ? error.message : String(error);
+        const isProviderIssue = /(provider|unsupported|invalid|not available|bad request|403|429|network)/i.test(message);
+        console.warn(`HF chatCompletion failed for ${modelName} (attempt ${attempt + 1}, provider: ${providerCandidates[attempt % providerCandidates.length] ?? "default"}):`, message);
+
+        if (attempt === 0 && isProviderIssue) {
+          continue;
+        }
+
         if (attempt === 0) {
           continue;
         }
@@ -306,83 +321,102 @@ export async function answerQueryWithMetadata(query: string): Promise<AnswerQuer
     throw new Error("La pregunta está vacía");
   }
 
-  const embedding = await generateEmbedding(cleanedQuery);
-  const supabaseClient = ensureSupabaseConfigured();
+  try {
+    const embedding = await generateEmbedding(cleanedQuery);
+    const supabaseClient = ensureSupabaseConfigured();
 
-  const queryEmbedding = Array.isArray(embedding?.[0]) ? embedding[0] : embedding;
+    const queryEmbedding = Array.isArray(embedding?.[0]) ? embedding[0] : embedding;
 
-  const { data, error } = await supabaseClient.rpc("match_documents", {
-    query_embedding: queryEmbedding,
-    match_count: 3,
-  });
+    const { data, error } = await supabaseClient.rpc("match_documents", {
+      query_embedding: queryEmbedding,
+      match_count: 3,
+    });
 
-  if (error) {
-    throw new Error(`No pude consultar los documentos: ${error.message}`);
-  }
+    if (error) {
+      console.warn("Supabase match_documents failed:", error);
+      return {
+        answer: "No pude consultar la base documental en este momento. Intenta nuevamente en unos segundos.",
+        source: "evidence",
+        usedModel: false,
+        fallback: true,
+        chunkIds: [],
+      };
+    }
 
-  const rawMatches = (data ?? []) as RankableMatch[];
-  const matches = dedupeMatches(rawMatches);
+    const rawMatches = (data ?? []) as RankableMatch[];
+    const matches = dedupeMatches(rawMatches);
 
-  if (!matches.length) {
+    if (!matches.length) {
+      return {
+        answer: "No encontré información relevante en los documentos cargados para responder tu pregunta.",
+        source: "evidence",
+        usedModel: false,
+        fallback: true,
+        chunkIds: [],
+      };
+    }
+
+    const chunkedMatches = expandMatchesIntoChunks(matches);
+    const rankedMatches = rankMatches(cleanedQuery, chunkedMatches).slice(0, 4);
+    const context = rankedMatches.map((entry) => entry.content).join("\n\n");
+    const topChunkIds = rankedMatches.map((entry) => entry.id).filter((id): id is number | string => id !== undefined);
+    const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
+    const nodeEnv = typeof process !== "undefined" ? process.env ?? {} : {};
+    const configuredModel = (viteEnv.VITE_HF_ANSWER_MODEL ?? nodeEnv.VITE_HF_ANSWER_MODEL ?? "").trim();
+    const chosenModels = configuredModel ? [configuredModel, ...DEFAULT_ANSWER_MODELS.filter((model) => model !== configuredModel)] : DEFAULT_ANSWER_MODELS;
+
+    try {
+      const hf = ensureHfConfigured();
+      const modelAnswer = await tryGenerateModelAnswer(
+        hf,
+        buildMexicanSpanishPrompt(context, cleanedQuery),
+        chosenModels,
+      );
+
+      if (modelAnswer) {
+        const finalAnswer = buildHybridAnswer(rankedMatches, modelAnswer);
+        console.info("RAG answer with model", {
+          query: cleanedQuery,
+          chunkIds: topChunkIds,
+          source: "model",
+        });
+        return {
+          answer: finalAnswer,
+          source: "model",
+          usedModel: true,
+          fallback: false,
+          chunkIds: topChunkIds,
+        };
+      }
+    } catch {
+      // Provider errors are non-fatal: the app should keep responding with grounded RAG content.
+    }
+
+    const groundedAnswer = buildGroundedFallbackAnswer(rankedMatches);
+    console.info("RAG answer fallback to evidence", {
+      query: cleanedQuery,
+      chunkIds: topChunkIds,
+      source: "evidence",
+    });
+
     return {
-      answer: "No encontré información relevante en los documentos cargados para responder tu pregunta.",
+      answer: groundedAnswer,
+      source: "evidence",
+      usedModel: false,
+      fallback: true,
+      chunkIds: topChunkIds,
+    };
+  } catch (error) {
+    console.warn("answerQueryWithMetadata failed; using safe fallback response:", error);
+
+    return {
+      answer: "No pude responder en este momento porque la conexión con la base documental o el modelo no está disponible. Intenta nuevamente en unos segundos.",
       source: "evidence",
       usedModel: false,
       fallback: true,
       chunkIds: [],
     };
   }
-
-  const chunkedMatches = expandMatchesIntoChunks(matches);
-  const rankedMatches = rankMatches(cleanedQuery, chunkedMatches).slice(0, 4);
-  const context = rankedMatches.map((entry) => entry.content).join("\n\n");
-  const topChunkIds = rankedMatches.map((entry) => entry.id).filter((id): id is number | string => id !== undefined);
-  const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
-  const nodeEnv = typeof process !== "undefined" ? process.env ?? {} : {};
-  const configuredModel = (viteEnv.VITE_HF_ANSWER_MODEL ?? nodeEnv.VITE_HF_ANSWER_MODEL ?? "").trim();
-  const chosenModels = configuredModel ? [configuredModel, ...DEFAULT_ANSWER_MODELS.filter((model) => model !== configuredModel)] : DEFAULT_ANSWER_MODELS;
-
-  try {
-    const hf = ensureHfConfigured();
-    const modelAnswer = await tryGenerateModelAnswer(
-      hf,
-      buildMexicanSpanishPrompt(context, cleanedQuery),
-      chosenModels,
-    );
-
-    if (modelAnswer) {
-      const finalAnswer = buildHybridAnswer(rankedMatches, modelAnswer);
-      console.info("RAG answer with model", {
-        query: cleanedQuery,
-        chunkIds: topChunkIds,
-        source: "model",
-      });
-      return {
-        answer: finalAnswer,
-        source: "model",
-        usedModel: true,
-        fallback: false,
-        chunkIds: topChunkIds,
-      };
-    }
-  } catch {
-    // Provider errors are non-fatal: the app should keep responding with grounded RAG content.
-  }
-
-  const groundedAnswer = buildGroundedFallbackAnswer(rankedMatches);
-  console.info("RAG answer fallback to evidence", {
-    query: cleanedQuery,
-    chunkIds: topChunkIds,
-    source: "evidence",
-  });
-
-  return {
-    answer: groundedAnswer,
-    source: "evidence",
-    usedModel: false,
-    fallback: true,
-    chunkIds: topChunkIds,
-  };
 }
 
 export async function answerQueryFromDocuments(query: string): Promise<string> {
