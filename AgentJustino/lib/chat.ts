@@ -233,10 +233,16 @@ function buildHybridAnswer(matches: Array<{ content: string }>, modelAnswer?: st
   return "No encontré información relevante en los documentos cargados para responder tu pregunta.";
 }
 
+type EnvRecord = Record<string, string | undefined>;
+
+function readEnv(name: string): string {
+  const viteEnv: EnvRecord = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
+  const nodeEnv: EnvRecord = typeof process !== "undefined" ? process.env ?? {} : {};
+  return (viteEnv[name] ?? nodeEnv[name] ?? "").trim();
+}
+
 function getHfProviderCandidates(): string[] {
-  const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
-  const nodeEnv = typeof process !== "undefined" ? process.env ?? {} : {};
-  const configuredProvider = (viteEnv.VITE_HF_PROVIDER ?? nodeEnv.VITE_HF_PROVIDER ?? "").trim();
+  const configuredProvider = readEnv("VITE_HF_PROVIDER");
 
   const candidates = [configuredProvider, "hf-inference", "featherless-ai"].filter((provider): provider is string => Boolean(provider && provider.trim()));
   return [...new Set(candidates)];
@@ -257,9 +263,10 @@ async function tryGenerateModelAnswer(
           continue;
         }
 
+        const chatCompletion = hf.chatCompletion.bind(hf);
         const provider = providerCandidates[attempt % providerCandidates.length] ?? "hf-inference";
         const request = () =>
-          hf.chatCompletion({
+          chatCompletion({
             ...(provider ? { provider } : {}),
             model: modelName,
             messages: [
@@ -360,9 +367,7 @@ export async function answerQueryWithMetadata(query: string): Promise<AnswerQuer
     const rankedMatches = rankMatches(cleanedQuery, chunkedMatches).slice(0, 4);
     const context = rankedMatches.map((entry) => entry.content).join("\n\n");
     const topChunkIds = rankedMatches.map((entry) => entry.id).filter((id): id is number | string => id !== undefined);
-    const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
-    const nodeEnv = typeof process !== "undefined" ? process.env ?? {} : {};
-    const configuredModel = (viteEnv.VITE_HF_ANSWER_MODEL ?? nodeEnv.VITE_HF_ANSWER_MODEL ?? "").trim();
+    const configuredModel = readEnv("VITE_HF_ANSWER_MODEL");
     const chosenModels = configuredModel ? [configuredModel, ...DEFAULT_ANSWER_MODELS.filter((model) => model !== configuredModel)] : DEFAULT_ANSWER_MODELS;
 
     try {
