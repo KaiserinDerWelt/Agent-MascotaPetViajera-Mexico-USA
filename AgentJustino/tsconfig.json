@@ -11,6 +11,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "types": ["node"]
   },
   "include": ["src", "api", "lib", "env.d.ts", "types.d.ts"],

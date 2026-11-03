@@ -20,7 +20,7 @@ Hackathon project for the **META · Gen 1 and DEV.F - CPFIA (Mexican Government)
 # Español
 
 ## 📌 ¿Qué es Justino?
-**Justino** es un perrito agente conversacional que guía a las personas en los trámites y requisitos para **importar y exportar perros y gatos como mascota entre México y Estados Unidos**, con base en la normativa vigente de **SENASICA**.
+**Justino** es un perrito agente conversacional que guía a las personas en los trámites y requisitos para **viajar con perros entre México y Estados Unidos** (importación y exportación), con base en la normativa vigente de **SENASICA**.
 
 👉 **Demo en línea:** https://agent-mascota-pet-viajera-mexico-us.vercel.app/
 
@@ -77,7 +77,7 @@ Facilitar el transporte internacional de **perritos y gatitos** 🐾, eliminando
 # English
 
 ## 📌 What is Justino?
-**Justino** is a conversational dog agent that guides people through the **procedures and requirements for importing and exporting pet dogs and cats between Mexico and the USA**, based on current **SENASICA** regulations.
+**Justino** is a conversational dog agent that guides people through the **procedures and requirements for traveling with dogs between Mexico and the USA** (import and export), based on current **SENASICA** regulations.
 
 👉 **Live demo:** https://agent-mascota-pet-viajera-mexico-us.vercel.app/
 

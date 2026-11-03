@@ -1,32 +1,56 @@
 import { useState, type ReactElement } from "react";
 import { Box, Typography, TextField, Button, Paper } from "@mui/material";
 import senasicaLogo from "./assets/senasica-logo.png";
-import { answerQueryWithMetadata } from "../lib/chat";
+import { answerQueryWithMetadata, type AnswerSource } from "../lib/chat";
+import type { HistoryTurn } from "../lib/scope";
 
 interface Message {
   user?: string;
   agent?: string;
-  source?: "model" | "evidence";
-  fallback?: boolean;
+  source?: AnswerSource;
+  outOfScope?: boolean;
+}
+
+const SOURCE_LABELS: Record<AnswerSource, { text: string; color: string } | null> = {
+  model: { text: "Respuesta generada con modelo", color: "#0f766e" },
+  evidence: { text: "Respuesta basada en evidencia (modelo no disponible)", color: "#8a5b00" },
+  guardrail: null,
+  error: { text: "Servicio no disponible", color: "#b91c1c" },
+};
+
+/** Last turns of the conversation, so Justino understands follow-up questions. */
+function toHistory(messages: Message[]): HistoryTurn[] {
+  return messages
+    .filter((msg) => msg.source !== "error")
+    .slice(-6)
+    .map((msg): HistoryTurn => (msg.user ? { role: "user", content: msg.user } : { role: "assistant", content: msg.agent ?? "" }));
 }
 
 function ChatUI(): ReactElement {
   const [input, setInput] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || loading) return;
 
     const userMessage = input.trim();
+    const history = toHistory(messages);
     setMessages((prev) => [...prev, { user: userMessage }]);
     setInput("");
+    setLoading(true);
 
     try {
-      const result = await answerQueryWithMetadata(userMessage);
-      setMessages((prev) => [...prev, { agent: result.answer, source: result.source, fallback: result.fallback }]);
+      const result = await answerQueryWithMetadata(userMessage, history);
+      setMessages((prev) => [
+        ...prev,
+        { agent: result.answer, source: result.source, outOfScope: result.scope.kind === "out_of_scope" },
+      ]);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Error al consultar el backend.";
-      setMessages((prev) => [...prev, { agent: message, source: "evidence", fallback: true }]);
+      const message = error instanceof Error ? error.message : "Error al consultar a Justino.";
+      setMessages((prev) => [...prev, { agent: message, source: "error" }]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,24 +105,28 @@ function ChatUI(): ReactElement {
                 <Typography variant="body2" sx={{ lineHeight: 1.5 }}>
                   {text}
                 </Typography>
-                {!isUser && msg.source && (
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      display: "block",
-                      mt: 0.75,
-                      fontSize: 11,
-                      opacity: 0.8,
-                      color: msg.fallback ? "#8a5b00" : "#0f766e",
-                    }}
-                  >
-                    {msg.fallback ? "Respuesta basada en evidencia (modelo no disponible)" : "Respuesta generada con modelo"}
-                  </Typography>
-                )}
+                {!isUser && msg.source && (() => {
+                  const label = msg.outOfScope
+                    ? { text: "Fuera del alcance de Justino", color: "#6b7280" }
+                    : SOURCE_LABELS[msg.source];
+                  return label ? (
+                    <Typography
+                      variant="caption"
+                      sx={{ display: "block", mt: 0.75, fontSize: 11, opacity: 0.8, color: label.color }}
+                    >
+                      {label.text}
+                    </Typography>
+                  ) : null;
+                })()}
               </Box>
             </Box>
           );
         })}
+        {loading && (
+          <Typography variant="body2" sx={{ fontStyle: "italic", opacity: 0.7 }}>
+            Justino está olfateando la respuesta… 🐾
+          </Typography>
+        )}
       </Paper>
 
       <Box sx={{ display: "flex" }}>
@@ -114,7 +142,7 @@ function ChatUI(): ReactElement {
           }}
           placeholder="Escribe tu consulta..."
         />
-        <Button variant="contained" color="primary" onClick={() => void handleSend()} sx={{ ml: 1 }}>
+        <Button variant="contained" color="primary" onClick={() => void handleSend()} disabled={loading} sx={{ ml: 1 }}>
           Enviar
         </Button>
       </Box>

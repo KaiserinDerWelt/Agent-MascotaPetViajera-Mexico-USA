@@ -62,6 +62,9 @@ Hugging Face is a **mandatory project requirement**. Don't replace it with other
     │   └── assets/senasica-logo.png
     ├── lib/                  Core logic used by the app
     │   ├── chat.ts           RAG pipeline: answerQueryWithMetadata()
+    │   ├── scope.ts          Operational scope guard (dogs, Mexico ↔ USA)
+    │   ├── prompt.ts         System prompt + message format (shared with LoRA training)
+    │   ├── scope.test.ts     Unit tests (npm test)
     │   ├── embeddings.ts     generateEmbedding()
     │   ├── huggingface.ts    HF client + ensureHfConfigured()
     │   ├── supabase.ts       Supabase client + ensureSupabaseConfigured()
@@ -77,28 +80,94 @@ Hugging Face is a **mandatory project requirement**. Don't replace it with other
 
 ## 3. How a question is answered
 
-Entry point: `answerQueryWithMetadata(query)` in [`lib/chat.ts`](AgentJustino/lib/chat.ts), called by [`ChatUI.tsx`](AgentJustino/src/ChatUI.tsx).
+Entry point: `answerQueryWithMetadata(query, history)` in [`lib/chat.ts`](AgentJustino/lib/chat.ts), called by [`ChatUI.tsx`](AgentJustino/src/ChatUI.tsx). The chat sends the last 6 messages as `history`, so follow-up questions work.
 
-1. **Embed the question:** `generateEmbedding()` calls HF `featureExtraction` with `sentence-transformers/all-MiniLM-L6-v2`.
-2. **Retrieve:** `supabase.rpc("match_documents", { query_embedding, match_count: 3 })`.
-3. **Post-process:** drop SENASICA page headers and footers, dedupe, split matches into 600-character chunks, re-rank them by keyword overlap with the question, and keep the top 4 as context.
-4. **Generate:** HF `chatCompletion` with a Mexican-Spanish system prompt (`max_tokens: 180`, `temperature: 0.4`, `top_p: 0.9`, 15-second timeout per call).
-   - Model order: `VITE_HF_ANSWER_MODEL` (if set), then `Qwen/Qwen2.5-7B-Instruct`, `meta-llama/Llama-3.1-8B-Instruct`, `mistralai/Mistral-7B-Instruct-v0.2`, `microsoft/Phi-3-mini-4k-instruct`, `Qwen/Qwen2.5-3B-Instruct`.
-   - Each model is tried **twice**, rotating providers: `VITE_HF_PROVIDER` (if set), then `hf-inference`, then `featherless-ai`.
-5. **Compose the answer:**
-   - If the model answered: the cleaned model answer plus an "En resumen:" excerpt from the documents.
-   - If no model answered: an answer built only from the retrieved text.
+1. **Scope guard (no network, no credits):** `classifyQuery()` in [`lib/scope.ts`](AgentJustino/lib/scope.ts) decides whether the question is in scope. See [§3.1](#31-operational-scope).
+   - Greetings, "¿qué puedes hacer?" and thanks get a fixed reply.
+   - Out-of-scope questions get a fixed reply, chosen by the reason.
+   - Only in-scope questions go on to step 2.
+2. **Embed:** `generateEmbedding()` calls HF `featureExtraction` with `sentence-transformers/all-MiniLM-L6-v2`. For a follow-up ("¿y cuánto tarda?"), the previous question is included so the search has enough context.
+3. **Retrieve:** `supabase.rpc("match_documents", { query_embedding, match_count: 3 })`.
+4. **Post-process:** drop SENASICA page headers and footers, dedupe, split matches into 600-character chunks, re-rank them by keyword overlap with the question, and keep the top 4, numbered `[1]` to `[4]`.
+5. **Generate:** HF `chatCompletion` with the messages from `buildChatMessages()` in [`lib/prompt.ts`](AgentJustino/lib/prompt.ts): the system prompt, the last 4 turns, then the context and the question (`max_tokens: 320`, `temperature: 0.3`, `top_p: 0.9`, 20-second timeout).
+   - Targets, in order (see [§3.2](#32-answer-model-and-lora-fine-tuned-model)): the fine-tuned endpoint or model if configured, then `Qwen/Qwen2.5-7B-Instruct`, `meta-llama/Llama-3.1-8B-Instruct`, `mistralai/Mistral-7B-Instruct-v0.2`.
+   - **One call per target, at most `VITE_HF_MAX_MODEL_CALLS` (default 2) calls per question.** On a 402 (no credits) or 401/403 (bad token) error, it stops immediately, because every model on the account would fail the same way.
+6. **Compose:**
+   - If the model answered: the cleaned model answer. Line breaks are kept, so lists still show as lists.
+   - If the model's reply is one of the scope refusals, it's labeled as out of scope.
+   - If no model answered: up to 3 of the most relevant sentences from the retrieved text, followed by "confírmalo con SENASICA".
 
-The result also carries metadata (`source`, `usedModel`, `fallback`, `chunkIds`). The chat shows it under each reply as either **"Respuesta generada con modelo"** or **"Respuesta basada en evidencia (modelo no disponible)"**.
+The result carries `source` (`model` | `evidence` | `guardrail` | `error`), `scope`, `usedModel`, `fallback`, `chunkIds` and `model`. Under each reply the chat shows "Respuesta generada con modelo", "Respuesta basada en evidencia (modelo no disponible)", "Fuera del alcance de Justino" or "Servicio no disponible". Greetings have no label.
+
+### 3.1 Operational scope
+
+**Justino only answers questions about traveling with dogs between Mexico and the USA**, in either direction. Two layers enforce this:
+
+1. **`lib/scope.ts` (deterministic, runs first).** It matches keywords on normalized text: lowercase, no accents, no punctuation.
+
+   | Decision | Rule | Reply |
+   |---|---|---|
+   | `greeting` / `thanks` | The whole message is a greeting, "¿qué puedes hacer?" or thanks | Introduction, or "¡Con gusto!" |
+   | `out_of_scope` / `other_animal` | Mentions another species (gato, perico, conejo…) and no dog | "Por ahora solo puedo ayudarte con perros…" |
+   | `out_of_scope` / `other_destination` | Mentions another country and not Mexico or the USA, in a travel or pet question | "Solo tengo información para viajar con perros entre México y Estados Unidos…" |
+   | `in_scope` | Dog or pet + (travel, Mexico/USA, or paperwork word), **or** an animal-health term (SENASICA, rabia, microchip, zoosanitario…) + (travel or Mexico/USA) | Goes to RAG |
+   | `in_scope`, `followUp` | Short follow-up ("¿y cuánto cuesta?") when one of the last 3 user turns was in scope | Goes to RAG with the previous question added |
+   | `out_of_scope` / `off_topic` | Anything else, including "¿qué documentos necesito para viajar a USA?" with no pet mentioned | "Solo puedo responder preguntas sobre viajar con perros…" |
+
+   Generic "mascota" or "pet" is accepted, and the answer covers dogs.
+
+2. **System prompt (`lib/prompt.ts`).** It repeats the scope and tells the model to reply with the **exact same refusal sentences** when a question gets past the guard. It also tells the model to use only the reference text, never invent costs, deadlines or phone numbers, ask about the travel direction when it matters, and keep answers to 2–5 sentences in Mexican Spanish.
+
+To change the scope, edit the patterns and `SCOPE_REPLIES` in `lib/scope.ts` and add cases to [`lib/scope.test.ts`](AgentJustino/lib/scope.test.ts).
+
+### Justino's voice
+
+Justino speaks as **a friendly pug who has made the trip between Mexico and the USA many times** and now explains SENASICA's rules to other families. The voice is defined in `SYSTEM_PROMPT` (`lib/prompt.ts`) and used in every fixed text: `SCOPE_REPLIES` in `lib/scope.ts`, the fallback answers and the error messages in `lib/chat.ts`, and the loading text in `ChatUI.tsx`.
+
+- Speaks as a dog in the first person, uses "tú", and calls the pet "tu perrito" or "tu peludo".
+- At most **one** dog expression ("¡Guau!", "mi olfato me dice", "moviendo la cola") and **one** emoji (🐶 or 🐾) per answer.
+- **The personality never hides the rules:** requirements, deadlines and documents are stated exactly, without jokes.
+- Problems that could stop the trip (an expired vaccine, a missing document) are stated clearly and calmly.
+- When it helps, the answer ends with a practical tip or a short question.
+
+Example of the target style:
+
+> ¡Guau! Para que tu perrito entre a México desde Estados Unidos, lo más importante es que lleve su comprobante de vacuna antirrábica vigente 🐾. Al llegar, el personal de SENASICA en el aeropuerto o la frontera lo revisará. ¿Ya tienes su cartilla al día?
+
+This example only shows the tone. The actual requirements must come from the SENASICA documents.
+
+### 3.2 Answer model and LoRA fine-tuned model
+
+The pipeline is ready for the fine-tuned Justino model. Only configuration is needed, no code changes:
+
+| Where the LoRA model is served | Set |
+|---|---|
+| **Dedicated HF Inference Endpoint** (TGI, either merged weights or a base model with the adapter loaded) | `VITE_HF_ENDPOINT_URL=https://<endpoint>.endpoints.huggingface.cloud`, plus `VITE_HF_ANSWER_MODEL=<adapter or model id>` if the endpoint serves more than one |
+| **Merged model on the Hub**, served by an Inference Provider that supports it | `VITE_HF_ANSWER_MODEL=<user>/<model>` and `VITE_HF_PROVIDER=<provider>` (for example `featherless-ai`) |
+
+If the fine-tuned model fails, the next target is the base `Qwen/Qwen2.5-7B-Instruct`. Set `VITE_HF_MAX_MODEL_CALLS=1` to use only the fine-tuned model.
+
+**Training data must use the same prompt format.** Build each example with `buildChatMessages(context, question, history)` from `lib/prompt.ts` and add the expected assistant reply as the last message. Include:
+- in-scope questions in both travel directions, with SENASICA context
+- follow-up questions
+- questions whose answer isn't in the context, where the reply says so honestly
+- out-of-scope questions, where the reply is **exactly** the matching `SCOPE_REPLIES` sentence
+
+Every expected reply must be written in **Justino's voice** (see above), with requirements copied accurately from the context. The fine-tune is what makes the voice consistent. The prompt alone only gets part of the way with base models.
+
+If the prompt or the replies change later, regenerate the dataset.
 
 ### What the user sees when something fails
 
 | Message in the chat | Cause |
 |---|---|
-| "No pude responder en este momento porque la conexión con la base documental o el modelo no está disponible…" | The embedding call or the Supabase client threw: missing keys, no HF credits (HTTP 402), or Supabase unreachable. Check the browser console for the real error. |
-| "No pude consultar la base documental en este momento…" | `match_documents` returned an error (function missing, permissions, wrong vector size). |
-| "No encontré información relevante en los documentos cargados…" | The search worked, but the `documents` table is empty or nothing matched. |
-| Reply labeled "Respuesta basada en evidencia (modelo no disponible)" | Retrieval worked, but every answer model failed or timed out. |
+| "…el servicio de modelos de Hugging Face no tiene créditos disponibles…" | HF returned 402. Add credits to the account that owns `VITE_HF_API_KEY`. |
+| "…la conexión con Hugging Face no está configurada correctamente." | `VITE_HF_API_KEY` is missing or invalid (401/403). |
+| "…no logré conectarme a la base de información de SENASICA…" | Supabase unreachable (paused project, wrong URL) or `match_documents` returned an error. |
+| "Todavía no tengo información de SENASICA cargada…" | The search worked, but the `documents` table is empty. |
+| Reply labeled "Respuesta basada en evidencia (modelo no disponible)" | Retrieval worked, but no answer model responded. The reason is logged in the browser console. |
+
+The browser console shows the underlying error and its category (`hf_credits`, `hf_auth`, `database` or `unknown`).
 
 ---
 
@@ -155,8 +224,10 @@ Create `AgentJustino/.env`. It's ignored by git, so never commit it.
 | `VITE_HF_API_KEY` | Yes | Hugging Face access token (Inference Providers permission) |
 | `VITE_SUPABASE_URL` | Yes | `https://<project-ref>.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | Yes | Supabase **anon public** key. Never use the `service_role` key here. |
-| `VITE_HF_ANSWER_MODEL` | No | Answer model to try first, for example `Qwen/Qwen2.5-7B-Instruct` |
-| `VITE_HF_PROVIDER` | No | HF inference provider to try first, for example `hf-inference` |
+| `VITE_HF_ENDPOINT_URL` | No | Dedicated HF Inference Endpoint for the answer model, such as the LoRA fine-tuned Justino. Tried first. |
+| `VITE_HF_ANSWER_MODEL` | No | Hub model id for the answer model, such as the merged LoRA model. Tried first when no endpoint is set. |
+| `VITE_HF_PROVIDER` | No | Inference provider for Hub models, for example `featherless-ai` or `hf-inference`. Defaults to HF automatic routing. |
+| `VITE_HF_MAX_MODEL_CALLS` | No | Most chat-completion calls per question (default `2`) |
 
 Vite reads `.env` only when it starts. **Restart `npm run dev` after changing it.**
 
@@ -171,6 +242,7 @@ npm install
 npm run dev       # http://localhost:5173
 npm run build     # production build into dist/
 npm run preview   # serve the production build
+npm test          # scope guard + prompt unit tests (no network, no HF credits)
 ```
 
 ### Vercel
@@ -191,11 +263,12 @@ Treat both as not working until they're either removed or connected to the app.
 
 | Issue | Impact | Notes |
 |---|---|---|
-| **Hugging Face credits exhausted** (HTTP 402 "no remaining credits") | Every question fails at the embedding step | Free HF accounts get a small monthly credit. Each question makes 1 embedding call plus up to 10 answer-model calls (5 models × 2 tries). Uploads make 1 call per chunk. Check huggingface.co/settings/billing. |
-| **Supabase project unreachable** (`opasocjuffdzerdyfqas.supabase.co` doesn't resolve) | No documents can be searched | Restore the project if it's paused. If it was deleted, recreate it with `schema.sql`, update the env vars, and re-upload the PDFs. |
+| **Hugging Face has no credits** (HTTP 402 "no remaining credits") | In-scope questions fail at the embedding step. Greetings and out-of-scope replies still work. | Free accounts no longer include a monthly Inference Providers credit, so a payment method or prepaid credits are required. Each in-scope question costs 1 embedding call plus at most 2 answer-model calls. Uploads cost 1 call per chunk. Check huggingface.co/settings/billing. |
+| **Supabase free-tier pausing** | No documents can be searched while the project is paused | The project was paused and has been restored. The documents survived. Use it regularly, and check it before demos. |
 | **API keys are public** | Anyone can copy the HF token and Supabase anon key from the deployed JavaScript | That's how `VITE_*` variables work. Together with the RLS policies, anyone can read, insert and delete documents. Acceptable for the hackathon demo. Before a public launch, move the HF calls and writes behind a serverless function. |
-| Generic error message | The real cause is hidden in the chat | The outer `catch` in `lib/chat.ts` shows one message for every failure. The real error is in the browser console. |
+| Scope guard is keyword-based | Unusual phrasings can be misclassified | Mitigated by the same rules in the system prompt. Add misclassified examples to `lib/scope.test.ts` and adjust the patterns. |
+| End-to-end model answers untested | The model and LoRA path hasn't run against a live model yet | Blocked by HF credits. The guard, prompt format, error handling and build are verified. |
 | PDF uploader hidden | Documents can't be loaded from the deployed app | See §4. |
 | Chunk `overlap` unused | Neighboring chunks don't overlap | `splitTextIntoChunks()` accepts `overlap` but ignores it. |
 | Source PDFs not in the repo | A deleted database can't be rebuilt from the repo alone | Keep the SENASICA PDFs somewhere safe. |
-| No tests or lint script | Changes aren't checked automatically | ESLint is configured, but there's no `npm run lint` yet. |
+| Limited automated checks | Only the scope guard and prompt have tests | `npm test` covers `lib/scope.ts` and `lib/prompt.ts`. There's no `npm run lint` yet. |
