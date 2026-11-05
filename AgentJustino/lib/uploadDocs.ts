@@ -1,23 +1,8 @@
-import { ensureSupabaseConfigured, supabase } from "./supabase";
-import { ensureHfConfigured } from "./huggingface";
-import { splitDocumentsIntoChunks } from "./chunking";
-
-function normalizeEmbedding(value: unknown): number[] {
-  if (Array.isArray(value)) {
-    if (Array.isArray(value[0])) {
-      return value[0] as number[];
-    }
-
-    if (value.every((item) => typeof item === "number")) {
-      return value as number[];
-    }
-  }
-
-  throw new Error("Invalid embedding format returned by Hugging Face");
-}
+import { ensureSupabaseConfigured } from "./supabase.ts";
+import { generateEmbedding } from "./embeddings.ts";
+import { splitDocumentsIntoChunks } from "./chunking.ts";
 
 export async function uploadDocs(docs: string[]) {
-  const hf = ensureHfConfigured();
   const supabaseClient = ensureSupabaseConfigured();
   const chunks = splitDocumentsIntoChunks(docs);
 
@@ -29,19 +14,10 @@ export async function uploadDocs(docs: string[]) {
     let vector: number[];
 
     try {
-      const embedding = await hf.featureExtraction({
-        model: "sentence-transformers/all-MiniLM-L6-v2",
-        inputs: chunk,
-      });
-
-      vector = normalizeEmbedding(embedding);
+      vector = await generateEmbedding(chunk);
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudo generar el embedding";
-      throw new Error(`Fallo al generar el embedding: ${message}`);
-    }
-
-    if (!vector.length) {
-      throw new Error("El embedding generado está vacío");
+      throw new Error(`Fallo al generar el embedding: ${message}`, { cause: error });
     }
 
     const { error: insertError } = await supabaseClient

@@ -7,12 +7,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test lib/*.test.ts"
+    "test": "node --test lib/*.test.ts",
+    "smoke": "node --env-file-if-exists=.env scripts/ollamaSmoke.ts",
+    "check-embeddings": "node --env-file-if-exists=.env scripts/checkEmbeddings.ts",
+    "reembed": "node --env-file-if-exists=.env scripts/reembed.ts",
+    "seed-docs": "node --env-file-if-exists=.env scripts/seedDocs.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
-    "@huggingface/inference": "^4.13.30",
     "@mui/material": "^9.4.0",
     "@supabase/supabase-js": "^2.117.0",
     "pdfjs-dist": "^6.3.289",

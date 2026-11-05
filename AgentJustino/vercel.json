@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [{ "source": "/ollama/:path*", "destination": "/api/ollama?path=:path*" }],
+  "functions": {
+    "api/ollama.ts": { "maxDuration": 90 }
+  }
+}

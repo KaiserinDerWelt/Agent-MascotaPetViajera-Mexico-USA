@@ -1,6 +1,27 @@
 # Plan: replace Hugging Face with Ollama
 
-**Status:** proposed · **Branch:** `feature-OLLAMA-Instead-Hugging-Face` · **Written:** 2026-11-05
+**Status:** implemented (Phases 0–8) · **Branch:** `feature-OLLAMA-Instead-Hugging-Face` · **Written:** 2026-11-05
+
+## Implementation results (2026-11-05)
+
+- **Embeddings:** `all-minilm:22m` matches the stored vectors exactly. `npm run check-embeddings` gave cosine similarity 1.0000 on 20 of 20 rows. No re-embed and no schema change were needed.
+- **Answer models:** default `qwen2.5:7b`, with fallback `gemma3:4b`. Verified end to end with `gemma3:4b` on an Apple Silicon laptop: about 21 seconds per answer once loaded, and about 83 seconds for the first call while the model loads. The fallback was verified with `qwen2.5:7b` not pulled.
+- **Failure path verified:** with Ollama unreachable, greetings and out-of-scope replies still work, and in-scope questions get the `model_unreachable` message.
+- **Proxy:** `api/ollama.ts` plus `vercel.json`, with its logic in `lib/ollamaProxy.ts`. The path and model allowlists are unit-tested. **Not yet deployed:** `OLLAMA_UPSTREAM_URL` and the tunnel still have to be set up.
+- **Differences from the plan:**
+  - `src/global.d.ts` was deleted, because it only held the HF declarations.
+  - `reembed.ts` requires `SUPABASE_SERVICE_ROLE_KEY`, because the schema has no UPDATE policy for anon.
+  - `scripts/uploadDocs.ts` now re-exports `lib/uploadDocs.ts`.
+- **Update (same day): answers moved to Ollama Cloud.**
+  - `api/chat` now goes to `https://ollama.com` with `Authorization: Bearer $OLLAMA_API_KEY`, using `glm-5.3-flash` with fallback `gpt-oss:20b`.
+  - Ollama Cloud lists no embedding models, so `api/embed` stays on a self-hosted Ollama (`OLLAMA_EMBED_UPSTREAM_URL`).
+  - The key is only read server-side: the Vite dev proxy, `api/ollama.ts` and scripts.
+- **Still open:**
+  - [ ] Deploy (Option A: tunnel, then set Vercel env vars)
+  - [ ] Revoke the HF token and remove `VITE_HF_*` from `.env` and Vercel
+  - [ ] Run the model evaluation in §6 with Ollama Cloud models
+  - [ ] Phase 9 (optional)
+  - [ ] LoRA (§7)
 
 ## Why
 
