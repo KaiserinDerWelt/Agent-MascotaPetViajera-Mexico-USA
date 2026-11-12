@@ -16,8 +16,13 @@
   - `api/chat` now goes to `https://ollama.com` with `Authorization: Bearer $OLLAMA_API_KEY`, using `glm-5.3-flash` with fallback `gpt-oss:20b`.
   - Ollama Cloud lists no embedding models, so `api/embed` stays on a self-hosted Ollama (`OLLAMA_EMBED_UPSTREAM_URL`).
   - The key is only read server-side: the Vite dev proxy, `api/ollama.ts` and scripts.
+- **Credits (2026-11-11):**
+  - Ollama Cloud is pay per token. The account behind `OLLAMA_API_KEY` has a $0.00 included allowance and $0.00 purchased credits (`npm run ollama-balance`), and `glm-5.3-flash` plus 10 other cloud models returned 402.
+  - A Justino answer costs at most ≈ $0.0004 on `glm-5.3-flash`.
+  - Details, pricing and steps to enable it are in `CURRENT.md` §3.3.
 - **Still open:**
-  - [ ] Deploy (Option A: tunnel, then set Vercel env vars)
+  - [ ] Add Ollama Cloud usage credits, or self-host the answer model (`CURRENT.md` §3.3)
+  - [ ] Deploy (tunnel for embeddings, then set Vercel env vars)
   - [ ] Revoke the HF token and remove `VITE_HF_*` from `.env` and Vercel
   - [ ] Run the model evaluation in §6 with Ollama Cloud models
   - [ ] Phase 9 (optional)

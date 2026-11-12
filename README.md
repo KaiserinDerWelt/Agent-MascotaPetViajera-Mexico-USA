@@ -45,7 +45,7 @@ Justino usa **RAG (Retrieval-Augmented Generation)**:
 1. Los PDF de SENASICA se dividen en fragmentos y se guardan en **Supabase** (pgvector) junto con su *embedding*.
 2. Cuando escribes una pregunta, se convierte en un *embedding* con **Ollama** (`all-MiniLM-L6-v2`).
 3. Se buscan los fragmentos más parecidos en Supabase.
-4. Un modelo de lenguaje abierto en **Ollama Cloud** (`glm-5.3-flash`) redacta la respuesta usando solo esos fragmentos. Si el modelo no está disponible, Justino responde con el texto de los documentos.
+4. Un modelo de lenguaje abierto en **Ollama Cloud** (`glm-5.3-flash`, de pago por uso: requiere créditos) redacta la respuesta usando solo esos fragmentos. Si el modelo no está disponible, Justino responde con el texto de los documentos.
 
 **Tecnologías:** React 19 · TypeScript · Vite · Material UI · Ollama · Supabase (pgvector) · Vercel.
 
@@ -107,7 +107,7 @@ Justino uses **RAG (Retrieval-Augmented Generation)**:
 1. SENASICA PDFs are split into chunks and stored in **Supabase** (pgvector) along with their embeddings.
 2. Your question is turned into an embedding with **Ollama** (`all-MiniLM-L6-v2`).
 3. Supabase returns the most similar chunks.
-4. An open language model on **Ollama Cloud** (`glm-5.3-flash`) writes the answer using only those chunks. If the model is unavailable, Justino answers with text from the documents instead.
+4. An open language model on **Ollama Cloud** (`glm-5.3-flash`, pay per use: needs credits) writes the answer using only those chunks. If the model is unavailable, Justino answers with text from the documents instead.
 
 **Stack:** React 19 · TypeScript · Vite · Material UI · Ollama · Supabase (pgvector) · Vercel.
 

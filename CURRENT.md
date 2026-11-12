@@ -12,7 +12,7 @@ Current state of the project as of **November 5, 2026**. For the project's purpo
 
 Justino is a **single-page React app that runs the RAG pipeline in the browser**. Models run on **[Ollama](https://ollama.com)**:
 
-- **Answers** come from **Ollama Cloud** (`https://ollama.com/api/chat`, model `glm-5.3-flash`). This needs `OLLAMA_API_KEY`.
+- **Answers** come from **Ollama Cloud** (`https://ollama.com/api/chat`, model `glm-5.3-flash`). This needs `OLLAMA_API_KEY` **and prepaid usage credits**: Ollama Cloud is not free (see [§3.3](#33-ollama-cloud-credits-required-for-model-answers)).
 - **Embeddings** come from a **self-hosted Ollama** (`all-minilm:22m`), because Ollama Cloud has no embedding models.
 
 The browser always calls the same-origin path `/ollama/*` and never sees the API key. The server-side proxy [`lib/ollamaProxy.ts`](AgentJustino/lib/ollamaProxy.ts) sends `api/chat` to Ollama Cloud with `Authorization: Bearer $OLLAMA_API_KEY`, and `api/embed` to the self-hosted Ollama:
@@ -170,6 +170,67 @@ Every expected reply must be written in **Justino's voice** (see above), with re
 
 If the prompt or the replies change later, regenerate the dataset.
 
+### 3.3 Ollama Cloud credits (required for model answers)
+
+**Ollama Cloud is not free.** Model answers only work if the Ollama account that owns `OLLAMA_API_KEY` has usage credits. Without them, every chat request returns **HTTP 402**, and Justino falls back to answers built from the document text. Embeddings aren't affected: they run on the self-hosted Ollama, which is free.
+
+#### Current state (checked 2026-11-11)
+
+| Check | Result |
+|---|---|
+| `npm run ollama-balance` | Included allowance **$0.00 of $0.00** (period 2026-11-05 → 2026-12-05). Purchased credits **$0.00**. |
+| Chat request to `glm-5.3-flash` | `402`: "Add usage credits or subscribe and save up to 66%: https://ollama.com/plans" |
+| 12 other cloud models tried with the same key, on 2026-11-11 | `402` on all that exist (`gpt-oss:20b`, `gpt-oss:120b`, `gemma4:31b`, `deepseek-v4.1-flash`, `minimax-m3.1-flash`, `mimo-v2.6-flash`, `glm-5.3`, `kimi-k2.6`, `beam`, `muse-spark-open`). `nemotron-3-nano:30b` returned `410`. `clef:27b` returned `400`. |
+
+So no cloud model is free on this account: a smaller or different model doesn't avoid the charge.
+
+#### How Ollama Cloud billing works
+
+From [ollama.com/pricing](https://ollama.com/pricing), checked 2026-11-11:
+
+| Plan | Price | Included usage credits | Concurrent requests |
+|---|---|---|---|
+| **Pay as you go** | $0, no subscription | **None.** You buy usage credits and pay per token. | 3 |
+| Pro | $20/month ($200/year) | $60 per month | 3 |
+| Max | $100/month | $300 per month | 10 |
+
+- Usage is billed **per token**, at a separate rate for input and output tokens that depends on the model.
+- Ollama's [August 31, 2026 blog post](https://ollama.com/blog/transparent-pricing) said the free plan included "a small amount of monthly usage for a set of starter models". The current pricing page lists no such allowance, and this account's allowance is $0.00. **Don't rely on a free allowance.**
+- Requests above the concurrency limit are queued. When the queue is full, they're rejected until a slot opens. Ollama doesn't document which status code it uses for this. Its [errors page](https://docs.ollama.com/api/errors) lists 429 for rate limits, which Justino reports as `rate_limited`.
+
+#### What one Justino question costs
+
+Measured on Justino's real prompt (`buildChatMessages()`: system prompt, 4 context chunks of up to 600 characters, the question, and up to 4 history turns):
+
+- **Input:** about 5,100 characters with no history, or 6,400 with 4 history turns. That's about **1,250–1,600 tokens**, at the measured 4.1 characters per token for this Spanish text. Token counts vary slightly between model tokenizers.
+- **Output:** at most **320 tokens** (`num_predict: 320` in `lib/chat.ts`).
+
+| Model | Input / output price (USD per 1M tokens) | Max cost per answer (1,600 in + 320 out) | Answers per $1 (at that max) |
+|---|---|---|---|
+| `glm-5.3-flash` (default) | $0.15 / $0.50 | ≈ $0.00040 | ≈ 2,500 |
+| `gpt-oss:20b` (fallback) | $0.07 / $0.30 | ≈ $0.00021 | ≈ 4,800 |
+
+A question uses **at most 2 chat calls** (`VITE_LLM_MAX_MODEL_CALLS`), and the fallback only runs if the first model fails. Greetings, thanks and out-of-scope questions never call the model, so they cost nothing.
+
+**Upper bound for a single abusive request:** the proxy limits the body to 64 KB (about 16,000 tokens) and output to 512 tokens. On `glm-5.3-flash` that's at most ≈ $0.0027 per request. The proxy also only allows the configured models, so a caller can't switch to an expensive one such as `kimi-k3` ($3.00 / $15.00 per 1M tokens).
+
+#### Spending risk on the public site
+
+Anyone who opens the deployed site can make Justino call the model, and the proxy has **no per-visitor rate limit**. With Pay as you go, spending can't go above the credits you bought, so buying a small amount works as a spending cap. Per-key cost budgets are only offered on the Enterprise plan.
+
+#### How to enable model answers
+
+1. Sign in at https://ollama.com with the account that owns `OLLAMA_API_KEY`.
+2. Add usage credits (Pay as you go) or subscribe at https://ollama.com/plans.
+3. Run `cd AgentJustino && npm run ollama-balance` and check that "Purchased credits" or "Included (plan) balance" is above $0.
+4. Run `npm run smoke -- --chat-only`. It should print a model reply instead of `[credits 402]`.
+
+No code change or redeploy is needed: the next question uses the credits.
+
+#### Free alternative
+
+Run the answer model on your own Ollama instead. For example, set `OLLAMA_CHAT_UPSTREAM_URL` to the same self-hosted Ollama used for embeddings, and `VITE_OLLAMA_CHAT_MODEL=gemma3:4b`. It costs nothing, but it only works while that machine is on, and answers are slower: about 20 seconds per answer on an Apple Silicon laptop once the model is loaded. See [§8](#8-development-and-deployment).
+
 ### What the user sees when something fails
 
 | Message in the chat | Cause |
@@ -221,6 +282,7 @@ These live in [`AgentJustino/scripts/`](AgentJustino/scripts/). Run them from `A
 | Command | What it does |
 |---|---|
 | `npm run smoke` | One embedding call and one chat call per answer model, with timings. Add `-- --chat-only` to test only Ollama Cloud. **Run it before every demo.** |
+| `npm run ollama-balance` | Shows the Ollama Cloud credit balance for `OLLAMA_API_KEY` (`GET https://ollama.com/api/balance`). See [§3.3](#33-ollama-cloud-credits-required-for-model-answers). |
 | `npm run check-embeddings` | Read-only. Re-embeds 20 stored rows and compares them with the stored vectors. Use it after changing the embedding model or Ollama version. |
 | `npm run reembed -- --yes` | Re-embeds every row **in place** (update, never delete). Needs `SUPABASE_SERVICE_ROLE_KEY` in `.env`, because the anon key has no UPDATE policy. Export the `documents` table first. |
 | `npm run seed-docs` | Inserts one test document. |
@@ -239,7 +301,7 @@ Create `AgentJustino/.env`. It's ignored by git, so never commit it.
 | `VITE_SUPABASE_ANON_KEY` | Yes | Supabase **anon public** key. Never use the `service_role` key here. |
 | `VITE_OLLAMA_BASE_URL` | No | Base path the browser calls. Default `/ollama`. Leave it unset in dev and prod. |
 | `VITE_OLLAMA_EMBED_MODEL` | No | Embedding model. Default `all-minilm:22m`. **Must produce 384 dimensions.** |
-| `OLLAMA_API_KEY` | Yes | Ollama Cloud API key (ollama.com → Settings → API keys). **Server-side only**: read by the Vite dev proxy, `api/ollama.ts` and scripts. **Never** prefix it with `VITE_`. |
+| `OLLAMA_API_KEY` | Yes | Ollama Cloud API key (ollama.com → Settings → API keys). The account needs usage credits ([§3.3](#33-ollama-cloud-credits-required-for-model-answers)). **Server-side only**: read by the Vite dev proxy, `api/ollama.ts` and scripts. **Never** prefix it with `VITE_`. |
 | `VITE_OLLAMA_CHAT_MODEL` | No | Answer model, tried first. Default `glm-5.3-flash`. |
 | `VITE_OLLAMA_FALLBACK_MODELS` | No | Comma-separated fallback models. Default `gpt-oss:20b`. |
 | `VITE_LLM_MAX_MODEL_CALLS` | No | Most chat calls per question (default `2`) |
@@ -312,7 +374,8 @@ The proxy only forwards `POST /api/embed` and `POST /api/chat` for allowlisted m
 | Issue | Impact | Notes |
 |---|---|---|
 | **Self-hosted Ollama must be up for embeddings** | While it's down or the tunnel is closed, in-scope questions fail at the embedding step. Greetings and out-of-scope replies still work. | Run `npm run smoke` before demos. For an always-on site, move the embedding Ollama to a small VPS (see [§8](#8-development-and-deployment)). |
-| **Ollama Cloud usage limits** | With no usage credits (402) or at the usage limit (429), answers fall back to document text | Check usage at ollama.com. The error kind is logged in the browser console. |
+| **Ollama Cloud has no credits** (HTTP 402 on every model) | Every in-scope answer falls back to document text. Greetings and out-of-scope replies still work. | Ollama Cloud is pay per token, with no free allowance on this account (checked 2026-11-11: $0.00 included, $0.00 purchased). Add credits, or self-host the answer model. See [§3.3](#33-ollama-cloud-credits-required-for-model-answers). |
+| Ollama Cloud concurrency | Pay as you go and Pro allow 3 concurrent requests. Extra requests queue, and are rejected when the queue is full. | Rejected answers fall back to document text. Max allows 10. |
 | **Supabase free-tier pausing** | No documents can be searched while the project is paused | The project was paused and has been restored. The documents survived. Use it regularly, and check it before demos. |
 | **Supabase anon key is public** | Anyone can copy the Supabase anon key from the deployed JavaScript | That's how `VITE_*` variables work. Together with the RLS policies, anyone can read, insert and delete documents. Acceptable for the hackathon demo. Before a public launch, move writes behind a serverless function. Model access is already behind `api/ollama.ts`. |
 | Scope guard is keyword-based | Unusual phrasings can be misclassified | Mitigated by the same rules in the system prompt. Add misclassified examples to `lib/scope.test.ts` and adjust the patterns. |
