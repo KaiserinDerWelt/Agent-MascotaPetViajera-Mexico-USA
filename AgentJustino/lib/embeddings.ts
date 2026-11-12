@@ -1,25 +1,14 @@
-import { ensureHfConfigured } from "./huggingface";
+import { EMBEDDING_DIMENSIONS, ollamaEmbed } from "./ollama.ts";
 
-function normalizeEmbedding(value: unknown): number[] {
-  if (Array.isArray(value)) {
-    if (Array.isArray(value[0])) {
-      return value[0] as number[];
-    }
+/** Embeds text with Ollama (all-minilm:22m by default). Must match the vector(384) column in Supabase. */
+export async function generateEmbedding(text: string): Promise<number[]> {
+  const [vector] = await ollamaEmbed(text);
 
-    if (value.every((item) => typeof item === "number")) {
-      return value as number[];
-    }
+  if (vector.length !== EMBEDDING_DIMENSIONS) {
+    throw new Error(
+      `El modelo de embeddings devolvió ${vector.length} dimensiones; Supabase espera ${EMBEDDING_DIMENSIONS}. Revisa VITE_OLLAMA_EMBED_MODEL.`,
+    );
   }
 
-  throw new Error("Invalid embedding format returned by Hugging Face");
-}
-
-export async function generateEmbedding(text: string) {
-  const hf = ensureHfConfigured();
-  const embedding = await hf.featureExtraction({
-    model: "sentence-transformers/all-MiniLM-L6-v2",
-    inputs: text,
-  });
-
-  return normalizeEmbedding(embedding);
+  return vector;
 }

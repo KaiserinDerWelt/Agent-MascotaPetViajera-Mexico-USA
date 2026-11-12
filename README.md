@@ -43,17 +43,22 @@ Justino responde en español de México, de forma breve y clara, usando **solo**
 ## ⚙️ ¿Cómo funciona?
 Justino usa **RAG (Retrieval-Augmented Generation)**:
 1. Los PDF de SENASICA se dividen en fragmentos y se guardan en **Supabase** (pgvector) junto con su *embedding*.
-2. Cuando escribes una pregunta, se convierte en un *embedding* con **Hugging Face** (`all-MiniLM-L6-v2`).
+2. Cuando escribes una pregunta, se convierte en un *embedding* con **Ollama** (`all-MiniLM-L6-v2`).
 3. Se buscan los fragmentos más parecidos en Supabase.
-4. Un modelo de lenguaje de **Hugging Face** redacta la respuesta usando solo esos fragmentos. Si el modelo no está disponible, Justino responde con el texto de los documentos.
+4. Un modelo de lenguaje abierto en **Ollama Cloud** (`glm-5.3-flash`, de pago por uso: requiere créditos) redacta la respuesta usando solo esos fragmentos. Si el modelo no está disponible, Justino responde con el texto de los documentos.
 
-**Tecnologías:** React 19 · TypeScript · Vite · Material UI · Hugging Face Inference · Supabase (pgvector) · Vercel.
+**Tecnologías:** React 19 · TypeScript · Vite · Material UI · Ollama · Supabase (pgvector) · Vercel.
 
 ## 🚀 Ejecutarlo localmente
 ```bash
+# instala Ollama (https://ollama.com) y descarga los modelos
+ollama pull all-minilm:22m
+# agrega OLLAMA_API_KEY=<tu llave> a AgentJustino/.env (ollama.com → Settings → API keys)
+
 cd AgentJustino
 npm install
-# crea AgentJustino/.env con tus llaves (ver CURRENT.md)
+# crea AgentJustino/.env con tus llaves de Supabase (ver CURRENT.md)
+npm run smoke   # revisa que Ollama responda
 npm run dev
 ```
 Abre http://localhost:5173/. La guía completa de configuración, la base de datos y el despliegue está en **[CURRENT.md](CURRENT.md)**.
@@ -100,17 +105,22 @@ Justino answers in Mexican Spanish, briefly and clearly, using **only** the info
 ## ⚙️ How it works
 Justino uses **RAG (Retrieval-Augmented Generation)**:
 1. SENASICA PDFs are split into chunks and stored in **Supabase** (pgvector) along with their embeddings.
-2. Your question is turned into an embedding with **Hugging Face** (`all-MiniLM-L6-v2`).
+2. Your question is turned into an embedding with **Ollama** (`all-MiniLM-L6-v2`).
 3. Supabase returns the most similar chunks.
-4. A **Hugging Face** language model writes the answer using only those chunks. If the model is unavailable, Justino answers with text from the documents instead.
+4. An open language model on **Ollama Cloud** (`glm-5.3-flash`, pay per use: needs credits) writes the answer using only those chunks. If the model is unavailable, Justino answers with text from the documents instead.
 
-**Stack:** React 19 · TypeScript · Vite · Material UI · Hugging Face Inference · Supabase (pgvector) · Vercel.
+**Stack:** React 19 · TypeScript · Vite · Material UI · Ollama · Supabase (pgvector) · Vercel.
 
 ## 🚀 Run it locally
 ```bash
+# install Ollama (https://ollama.com) and pull the models
+ollama pull all-minilm:22m
+# add OLLAMA_API_KEY=<your key> to AgentJustino/.env (ollama.com → Settings → API keys)
+
 cd AgentJustino
 npm install
-# create AgentJustino/.env with your keys (see CURRENT.md)
+# create AgentJustino/.env with your Supabase keys (see CURRENT.md)
+npm run smoke   # check that Ollama answers
 npm run dev
 ```
 Open http://localhost:5173/. The full setup, database and deployment guide is in **[CURRENT.md](CURRENT.md)**.

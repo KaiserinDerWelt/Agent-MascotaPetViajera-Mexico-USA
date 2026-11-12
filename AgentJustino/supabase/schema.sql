@@ -7,7 +7,7 @@ create extension if not exists vector with schema extensions;
 
 -- 2) Documents table
 --    Matches the app: inserts { content, embedding }, reads { id, content }.
---    embedding is 384 dims = sentence-transformers/all-MiniLM-L6-v2.
+--    embedding is 384 dims = all-MiniLM-L6-v2 (Ollama: all-minilm:22m).
 create table if not exists public.documents (
   id uuid primary key default gen_random_uuid(),
   content text not null,
@@ -20,7 +20,7 @@ create index if not exists documents_embedding_idx
   on public.documents
   using hnsw (embedding extensions.vector_cosine_ops);
 
--- 4) Search function called by lib/chat.ts and api/chat.ts:
+-- 4) Search function called by lib/chat.ts:
 --    supabase.rpc("match_documents", { query_embedding, match_count })
 create or replace function public.match_documents(
   query_embedding extensions.vector(384),

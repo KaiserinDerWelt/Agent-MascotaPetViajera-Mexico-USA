@@ -1,6 +1,6 @@
 // Operational scope guard for Justino.
 // Justino only answers questions about traveling with DOGS between MEXICO and the USA.
-// This runs before any Hugging Face call, so greetings and off-topic questions cost no credits.
+// This runs before any model call, so greetings and off-topic questions need no network.
 // Pure module (no imports) so it can be unit-tested with `node --test`.
 
 export type ScopeKind = "greeting" | "thanks" | "in_scope" | "out_of_scope";

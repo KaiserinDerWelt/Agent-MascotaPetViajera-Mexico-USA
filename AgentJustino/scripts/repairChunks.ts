@@ -1,6 +1,8 @@
+// WARNING: deletes EVERY row in public.documents before re-inserting the re-chunked text.
+// If embedding fails halfway, data is lost. To only refresh vectors, use scripts/reembed.ts.
 import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
-import { HfInference } from "@huggingface/inference";
+import { generateEmbedding } from "../lib/embeddings.ts";
 import { splitDocumentsIntoChunks } from "../lib/chunking.ts";
 
 function readEnv(filePath = ".env") {
@@ -16,23 +18,11 @@ function readEnv(filePath = ".env") {
   );
 }
 
-function normalizeEmbedding(value: unknown): number[] {
-  if (Array.isArray(value)) {
-    if (Array.isArray(value[0])) {
-      return value[0] as number[];
-    }
-    if (value.every((item) => typeof item === "number")) {
-      return value as number[];
-    }
-  }
-
-  throw new Error("Embedding inválido");
-}
-
 async function main() {
   const env = readEnv();
   const supabase = createClient(env.VITE_SUPABASE_URL!, env.VITE_SUPABASE_ANON_KEY!);
-  const hf = new HfInference(env.VITE_HF_API_KEY!);
+  // Lets lib/ollama.ts pick up OLLAMA_BASE_URL / VITE_OLLAMA_EMBED_MODEL from .env.
+  for (const [key, value] of Object.entries(env)) process.env[key] ??= value;
 
   const { data: existingRows, error: fetchError } = await supabase
     .from("documents")
@@ -55,12 +45,7 @@ async function main() {
   if (deleteError) throw deleteError;
 
   for (const chunk of chunks) {
-    const embedding = await hf.featureExtraction({
-      model: "sentence-transformers/all-MiniLM-L6-v2",
-      inputs: chunk,
-    });
-
-    const vector = normalizeEmbedding(embedding);
+    const vector = await generateEmbedding(chunk);
 
     const { error: insertError } = await supabase.from("documents").insert({
       content: chunk,

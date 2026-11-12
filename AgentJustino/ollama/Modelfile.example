@@ -1,0 +1,20 @@
+# Template for serving the LoRA fine-tuned Justino model with Ollama.
+# Copy to "Modelfile" next to your GGUF files, then on the Ollama host:
+#   ollama create justino -f Modelfile
+# and set VITE_OLLAMA_CHAT_MODEL=justino (and VITE_OLLAMA_FALLBACK_MODELS=qwen2.5:7b).
+# Don't commit the weights. See docs/ollama-migration-plan.md §7.
+
+# Option 1: merged + quantized model
+# FROM ./justino-q4_k_m.gguf
+
+# Option 2: base model + LoRA adapter converted to GGUF (llama.cpp convert_lora_to_gguf.py).
+# The base MUST be the exact base the adapter was trained on.
+FROM qwen2.5:7b
+ADAPTER ./justino-lora.gguf
+
+# No SYSTEM line: the app sends the system prompt (lib/prompt.ts) on every request.
+# Keep the base model's chat TEMPLATE (inherited from FROM).
+
+PARAMETER temperature 0.3
+PARAMETER top_p 0.9
+PARAMETER num_ctx 4096

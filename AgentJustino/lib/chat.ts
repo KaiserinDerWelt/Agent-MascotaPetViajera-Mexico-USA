@@ -1,75 +1,48 @@
-import { generateEmbedding } from "./embeddings";
-import { splitTextIntoChunks } from "./chunking";
-import { ensureSupabaseConfigured } from "./supabase";
-import { ensureHfConfigured } from "./huggingface";
-import { classifyQuery, scopeReply, SCOPE_REPLIES, type HistoryTurn, type ScopeDecision } from "./scope";
-import { buildChatMessages, type ChatMessage } from "./prompt";
+import { generateEmbedding } from "./embeddings.ts";
+import { splitTextIntoChunks } from "./chunking.ts";
+import { ensureSupabaseConfigured } from "./supabase.ts";
+import { OllamaError, ollamaChat, readEnv } from "./ollama.ts";
+import { classifyQuery, scopeReply, SCOPE_REPLIES, type HistoryTurn, type ScopeDecision } from "./scope.ts";
+import { buildChatMessages, type ChatMessage } from "./prompt.ts";
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
-/** Base models used when no fine-tuned model is configured, or as a fallback after it. */
-const DEFAULT_ANSWER_MODELS = [
-  "Qwen/Qwen2.5-7B-Instruct",
-  "meta-llama/Llama-3.1-8B-Instruct",
-  "mistralai/Mistral-7B-Instruct-v0.2",
-];
+/** Answer model (Ollama Cloud) used when VITE_OLLAMA_CHAT_MODEL is not set. */
+const DEFAULT_CHAT_MODEL = "glm-5.3-flash";
+/** Fallback models used when VITE_OLLAMA_FALLBACK_MODELS is not set. */
+const DEFAULT_FALLBACK_MODELS = ["gpt-oss:20b"];
 
 const MATCH_COUNT = 3;
 const CONTEXT_CHUNKS = 4;
-const MODEL_TIMEOUT_MS = 20000;
+/** Generous enough for a self-hosted CPU model too (cold loads are slow). */
+const DEFAULT_MODEL_TIMEOUT_MS = 60000;
+const NUM_CTX = 4096;
 
-type EnvRecord = Record<string, string | undefined>;
-
-function readEnv(name: string): string {
-  const viteEnv: EnvRecord = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
-  const nodeEnv: EnvRecord = typeof process !== "undefined" ? process.env ?? {} : {};
-  return (viteEnv[name] ?? nodeEnv[name] ?? "").trim();
+function readList(name: string): string[] | undefined {
+  const raw = readEnv(name);
+  if (!raw) return undefined;
+  return raw.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
-type AnswerTarget = {
-  label: string;
-  model?: string;
-  /** An @huggingface/inference provider id, e.g. "hf-inference", "featherless-ai", "auto". */
-  provider?: string;
-  endpointUrl?: string;
-};
-
-/** The part of the HF InferenceClient we use (src/global.d.ts declares the package untyped). */
-type ChatCompletionClient = {
-  chatCompletion: (args: Record<string, unknown>) => Promise<unknown>;
-};
-
 /**
- * Which models to ask, in order. Each target gets ONE call, so a question costs at most
- * VITE_HF_MAX_MODEL_CALLS (default 2) chat-completion calls.
+ * Ollama models to ask, in order. Each gets ONE call, so a question makes at most
+ * VITE_LLM_MAX_MODEL_CALLS (default 2) chat calls.
  *
- * - VITE_HF_ENDPOINT_URL: dedicated Inference Endpoint (e.g. the LoRA fine-tuned Justino model).
- * - VITE_HF_ANSWER_MODEL: model id on the Hub (e.g. the merged LoRA model), tried first.
- * - VITE_HF_PROVIDER: inference provider for Hub models (default: HF "auto" routing).
+ * - VITE_OLLAMA_CHAT_MODEL: primary model. Default glm-5.3-flash (Ollama Cloud).
+ * - VITE_OLLAMA_FALLBACK_MODELS: comma-separated fallbacks. Default gpt-oss:20b.
  */
-function getAnswerTargets(): AnswerTarget[] {
-  const endpointUrl = readEnv("VITE_HF_ENDPOINT_URL");
-  const configuredModel = readEnv("VITE_HF_ANSWER_MODEL");
-  const provider = readEnv("VITE_HF_PROVIDER") || undefined;
-  const maxCalls = Math.max(1, Number.parseInt(readEnv("VITE_HF_MAX_MODEL_CALLS"), 10) || 2);
+export function getAnswerModels(): string[] {
+  const primary = readEnv("VITE_OLLAMA_CHAT_MODEL") || DEFAULT_CHAT_MODEL;
+  const fallbacks = readList("VITE_OLLAMA_FALLBACK_MODELS") ?? DEFAULT_FALLBACK_MODELS;
+  const maxCalls = Math.max(1, Number.parseInt(readEnv("VITE_LLM_MAX_MODEL_CALLS"), 10) || 2);
 
-  const targets: AnswerTarget[] = [];
+  return [...new Set([primary, ...fallbacks])].slice(0, maxCalls);
+}
 
-  if (endpointUrl) {
-    targets.push({ label: configuredModel || endpointUrl, endpointUrl, model: configuredModel || undefined });
-  } else if (configuredModel) {
-    targets.push({ label: configuredModel, model: configuredModel, provider });
-  }
-
-  for (const model of DEFAULT_ANSWER_MODELS) {
-    if (model !== configuredModel) {
-      targets.push({ label: model, model, provider });
-    }
-  }
-
-  return targets.slice(0, maxCalls);
+function getModelTimeoutMs(): number {
+  return Math.max(1000, Number.parseInt(readEnv("VITE_LLM_TIMEOUT_MS"), 10) || DEFAULT_MODEL_TIMEOUT_MS);
 }
 
 // ---------------------------------------------------------------------------
@@ -160,20 +133,6 @@ function formatContext(matches: RankableMatch[]): string {
 // Answer composition
 // ---------------------------------------------------------------------------
 
-function normalizeGeneratedText(result: unknown): string {
-  if (typeof result === "string") return result.trim();
-
-  if (result && typeof result === "object") {
-    const content = (result as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0]?.message?.content;
-    if (typeof content === "string") return content.trim();
-
-    const generated = (result as { generated_text?: unknown }).generated_text;
-    if (typeof generated === "string") return generated.trim();
-  }
-
-  return "";
-}
-
 /** Light cleanup that keeps line breaks, so lists of requirements still render as lists. */
 function cleanModelAnswer(answer: string): string {
   return answer
@@ -226,30 +185,25 @@ function buildEvidenceAnswer(query: string, matches: RankableMatch[]): string {
 // Error handling
 // ---------------------------------------------------------------------------
 
-type FailureKind = "hf_credits" | "hf_auth" | "database" | "unknown";
+type FailureKind = "model_unreachable" | "model_missing" | "database" | "unknown";
 
-function getStatus(error: unknown): number | undefined {
-  if (!error || typeof error !== "object") return undefined;
-  const candidate = error as { httpResponse?: { status?: unknown }; status?: unknown };
-  const status = candidate.httpResponse?.status ?? candidate.status;
-  return typeof status === "number" ? status : undefined;
-}
+export function classifyFailure(error: unknown): FailureKind {
+  if (error instanceof OllamaError) {
+    if (error.kind === "unreachable" || error.kind === "timeout") return "model_unreachable";
+    if (error.kind === "model_missing") return "model_missing";
+    return "unknown";
+  }
 
-function classifyFailure(error: unknown): FailureKind {
-  const status = getStatus(error);
   const message = error instanceof Error ? error.message : String(error ?? "");
-
-  if (status === 402 || /no remaining credits|pre-paid credits|payment required/i.test(message)) return "hf_credits";
-  if (status === 401 || status === 403 || /hugging face|invalid (credentials|token)|unauthorized/i.test(message)) return "hf_auth";
   if (/supabase|fetch failed|failed to fetch|ENOTFOUND|network/i.test(message)) return "database";
   return "unknown";
 }
 
-const FAILURE_MESSAGES: Record<FailureKind, string> = {
-  hf_credits:
-    "¡Auu! 🐶 Ahorita no puedo responderte: el servicio de modelos de Hugging Face no tiene créditos disponibles. Intenta más tarde, aquí te espero.",
-  hf_auth:
-    "¡Auu! 🐶 Ahorita no puedo responderte: mi conexión con Hugging Face no está configurada correctamente.",
+export const FAILURE_MESSAGES: Record<FailureKind, string> = {
+  model_unreachable:
+    "¡Auu! 🐶 Mi cerebro de perrito está tomando una siesta y no puedo responderte ahorita. Intenta en unos minutos, aquí te espero.",
+  model_missing:
+    "¡Auu! 🐶 Algo de mi configuración no está listo y no puedo responderte. Avísale a mi equipo, por favor.",
   database:
     "¡Auu! 🐶 No logré llegar a mi información de SENASICA. Intenta nuevamente en unos minutos, aquí te espero.",
   unknown:
@@ -260,41 +214,27 @@ const FAILURE_MESSAGES: Record<FailureKind, string> = {
 // Model call
 // ---------------------------------------------------------------------------
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`HF timeout for ${label}`)), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
+async function generateModelAnswer(messages: ChatMessage[]): Promise<{ answer: string; model: string } | null> {
+  const timeoutMs = getModelTimeoutMs();
 
-async function generateModelAnswer(
-  hf: ChatCompletionClient,
-  messages: ChatMessage[],
-): Promise<{ answer: string; model: string } | null> {
-  for (const target of getAnswerTargets()) {
+  for (const model of getAnswerModels()) {
     try {
-      const completion = await withTimeout(
-        hf.chatCompletion({
-          ...(target.endpointUrl ? { endpointUrl: target.endpointUrl } : {}),
-          ...(target.model ? { model: target.model } : {}),
-          ...(target.provider ? { provider: target.provider } : {}),
-          messages,
-          max_tokens: 320,
-          temperature: 0.3,
-          top_p: 0.9,
-        }),
-        MODEL_TIMEOUT_MS,
-        target.label,
-      );
+      const raw = await ollamaChat(messages, {
+        model,
+        maxTokens: 320,
+        temperature: 0.3,
+        topP: 0.9,
+        numCtx: NUM_CTX,
+        timeoutMs,
+      });
 
-      const answer = cleanModelAnswer(normalizeGeneratedText(completion));
-      if (answer) return { answer, model: target.label };
+      const answer = cleanModelAnswer(raw);
+      if (answer) return { answer, model };
     } catch (error) {
-      const kind = classifyFailure(error);
-      console.warn(`HF chatCompletion failed for ${target.label} (${kind}):`, error instanceof Error ? error.message : error);
-      // No credits or bad token affect every model on this account: stop instead of burning more calls.
-      if (kind === "hf_credits" || kind === "hf_auth") break;
+      const kind = error instanceof OllamaError ? error.kind : "unknown";
+      console.warn(`Ollama chat failed for ${model} (${kind}):`, error instanceof Error ? error.message : error);
+      // These affect every model on the same server/account: don't burn more calls.
+      if (kind === "unreachable" || kind === "auth" || kind === "credits" || kind === "rate_limited") break;
     }
   }
 
@@ -321,7 +261,7 @@ export type AnswerQueryResult = {
  * Answers a user question.
  * 1. Scope guard (no network): greetings and off-topic questions get a fixed reply.
  * 2. RAG: embed the question, retrieve SENASICA chunks from Supabase, re-rank.
- * 3. Model: Hugging Face chat completion with the shared prompt (fine-tuned model first if configured).
+ * 3. Model: Ollama chat with the shared prompt (fine-tuned model first if configured).
  * 4. If no model answers: extractive answer from the retrieved chunks.
  */
 export async function answerQueryWithMetadata(query: string, history: HistoryTurn[] = []): Promise<AnswerQueryResult> {
@@ -373,13 +313,8 @@ export async function answerQueryWithMetadata(query: string, history: HistoryTur
     const chunkIds = rankedMatches.map((entry) => entry.id).filter((id): id is number | string => id !== undefined);
     const messages = buildChatMessages(formatContext(rankedMatches), cleanedQuery, history);
 
-    let modelResult: { answer: string; model: string } | null = null;
-    try {
-      modelResult = await generateModelAnswer(ensureHfConfigured(), messages);
-    } catch (modelError) {
-      // Model errors are non-fatal: we still answer from the retrieved documents.
-      console.warn("Answer model unavailable:", modelError);
-    }
+    // Model errors are non-fatal: without a model we still answer from the retrieved documents.
+    const modelResult = await generateModelAnswer(messages);
 
     if (modelResult) {
       const isRefusal = SCOPE_REPLY_SET.has(modelResult.answer);
