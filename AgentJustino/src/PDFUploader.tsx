@@ -18,8 +18,13 @@ function PDFUploader() {
     setLoading(true);
     try {
       const text = await readPDF(file);
-      await uploadDocs([text]);
-      alert("PDF procesado y guardado ✅");
+      const { inserted, duplicates, boilerplate } = await uploadDocs([text], file.name);
+      alert(
+        `PDF procesado ✅\n` +
+          `• Fragmentos nuevos guardados: ${inserted}\n` +
+          `• Ya existían (omitidos): ${duplicates}\n` +
+          `• Solo encabezados/pies de página (omitidos): ${boilerplate}`,
+      );
     } catch (err) {
       console.error(err);
       const message = err instanceof Error ? err.message : "Error al procesar el PDF";

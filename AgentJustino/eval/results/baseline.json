@@ -1,0 +1,288 @@
+{
+  "date": "2026-11-12T22:00:40.986Z",
+  "model": "all-minilm:22m",
+  "rows": 798,
+  "summary": {
+    "n": 34,
+    "hit1": 2,
+    "hit3": 2,
+    "hit10": 9,
+    "mrr": 0.09477124183006538,
+    "context": 2,
+    "uniqueTop3": 1
+  },
+  "results": [
+    {
+      "id": "mx-czi",
+      "lang": "es",
+      "rank": 9,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.654863534247326
+    },
+    {
+      "id": "mx-from-us-gbg",
+      "lang": "es",
+      "rank": 1,
+      "uniqueTop3": 1,
+      "contextHit": true,
+      "topSimilarity": 0.648287412217999
+    },
+    {
+      "id": "mx-from-us-5days",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.767029716549534
+    },
+    {
+      "id": "mx-from-canada",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.609575605963208
+    },
+    {
+      "id": "mx-other-15days",
+      "lang": "es",
+      "rank": 5,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.610860961999326
+    },
+    {
+      "id": "mx-cert-contents",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.589377231355564
+    },
+    {
+      "id": "mx-rabies-puppy",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.599642884688726
+    },
+    {
+      "id": "mx-deworming",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.6618633673354
+    },
+    {
+      "id": "mx-no-cert",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.6193442486935
+    },
+    {
+      "id": "mx-carrier-bedding",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.528658691484776
+    },
+    {
+      "id": "mx-carrier-spray",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.590073157540188
+    },
+    {
+      "id": "mx-collar",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.534924626350403
+    },
+    {
+      "id": "mx-food",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.637197120523801
+    },
+    {
+      "id": "mx-cargo",
+      "lang": "es",
+      "rank": 9,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.570319626946428
+    },
+    {
+      "id": "mx-ticks",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.557919793376951
+    },
+    {
+      "id": "pmvf-what",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.642626779392578
+    },
+    {
+      "id": "pmvf-docs",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.728488315018132
+    },
+    {
+      "id": "pmvf-renewal",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.763038368587305
+    },
+    {
+      "id": "pmvf-certur",
+      "lang": "es",
+      "rank": 1,
+      "uniqueTop3": 1,
+      "contextHit": true,
+      "topSimilarity": 0.536005882262842
+    },
+    {
+      "id": "pmvf-us-gbg-2026",
+      "lang": "es",
+      "rank": 5,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.448137706740179
+    },
+    {
+      "id": "pmvf-contact",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.497862875716347
+    },
+    {
+      "id": "us-no-cze",
+      "lang": "es",
+      "rank": 5,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.729445966548229
+    },
+    {
+      "id": "us-health-cert",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.62241439552136
+    },
+    {
+      "id": "us-cdc-rabies",
+      "lang": "es",
+      "rank": 5,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.591176050638439
+    },
+    {
+      "id": "us-who-issues",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.696694457136929
+    },
+    {
+      "id": "other-cze",
+      "lang": "es",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.587622414543921
+    },
+    {
+      "id": "en-mx-entry",
+      "lang": "en",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.587568097195157
+    },
+    {
+      "id": "en-mx-from-us",
+      "lang": "en",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.537981455085452
+    },
+    {
+      "id": "en-screwworm",
+      "lang": "en",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.581420627448059
+    },
+    {
+      "id": "en-puppy-rabies",
+      "lang": "en",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.49608637427512
+    },
+    {
+      "id": "en-bedding",
+      "lang": "en",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.435389833587721
+    },
+    {
+      "id": "en-frequent",
+      "lang": "en",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.584740621306284
+    },
+    {
+      "id": "en-us-health-cert",
+      "lang": "en",
+      "rank": 0,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.601291048757626
+    },
+    {
+      "id": "en-us-vet",
+      "lang": "en",
+      "rank": 5,
+      "uniqueTop3": 1,
+      "contextHit": false,
+      "topSimilarity": 0.605029552425524
+    }
+  ]
+}

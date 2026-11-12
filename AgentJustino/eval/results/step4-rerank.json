@@ -1,0 +1,394 @@
+{
+  "date": "2026-11-12T22:33:56.956Z",
+  "model": "all-minilm:22m",
+  "rows": 173,
+  "summary": {
+    "n": 42,
+    "hit1": 12,
+    "hit3": 19,
+    "hit10": 30,
+    "mrr": 0.41352040816326524,
+    "context": 26,
+    "uniqueTop3": 3
+  },
+  "results": [
+    {
+      "id": "mx-czi",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 2,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.600251328900305
+    },
+    {
+      "id": "mx-from-us-gbg",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.568413334772668
+    },
+    {
+      "id": "mx-from-us-5days",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.63066497953806
+    },
+    {
+      "id": "mx-from-canada",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.606174165562466
+    },
+    {
+      "id": "mx-other-15days",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.634916578965872
+    },
+    {
+      "id": "mx-cert-contents",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.600031375885027
+    },
+    {
+      "id": "mx-rabies-puppy",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 10,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.595353590611266
+    },
+    {
+      "id": "mx-deworming",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.62789690356404
+    },
+    {
+      "id": "mx-no-cert",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 10,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.638063642517005
+    },
+    {
+      "id": "mx-carrier-bedding",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 2,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.526495346961745
+    },
+    {
+      "id": "mx-carrier-spray",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 4,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.598928689956682
+    },
+    {
+      "id": "mx-collar",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 4,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.509890229099407
+    },
+    {
+      "id": "mx-food",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.59298516846412
+    },
+    {
+      "id": "mx-cargo",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 4,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.573359497380456
+    },
+    {
+      "id": "mx-ticks",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 2,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.527543889263221
+    },
+    {
+      "id": "pmvf-what",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.596217893652414
+    },
+    {
+      "id": "pmvf-docs",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 8,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.68184602260594
+    },
+    {
+      "id": "pmvf-renewal",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.725635907281371
+    },
+    {
+      "id": "pmvf-certur",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 3,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.508946955204024
+    },
+    {
+      "id": "pmvf-us-gbg-2026",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.518932059971472
+    },
+    {
+      "id": "pmvf-contact",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 2,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.484532981189093
+    },
+    {
+      "id": "us-no-cze",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 7,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.731428319386122
+    },
+    {
+      "id": "us-health-cert",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.596127986907976
+    },
+    {
+      "id": "us-cdc-rabies",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.641737935698444
+    },
+    {
+      "id": "us-who-issues",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 4,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.656617797998857
+    },
+    {
+      "id": "other-cze",
+      "lang": "es",
+      "set": "tuning",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.550795066167163
+    },
+    {
+      "id": "en-mx-entry",
+      "lang": "en",
+      "set": "tuning",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.443049867698527
+    },
+    {
+      "id": "en-mx-from-us",
+      "lang": "en",
+      "set": "tuning",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.430488706035046
+    },
+    {
+      "id": "en-screwworm",
+      "lang": "en",
+      "set": "tuning",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.448633342981351
+    },
+    {
+      "id": "en-puppy-rabies",
+      "lang": "en",
+      "set": "tuning",
+      "rank": 2,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.451296809238393
+    },
+    {
+      "id": "en-bedding",
+      "lang": "en",
+      "set": "tuning",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.376631915569316
+    },
+    {
+      "id": "en-frequent",
+      "lang": "en",
+      "set": "tuning",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.508713349440298
+    },
+    {
+      "id": "en-us-health-cert",
+      "lang": "en",
+      "set": "tuning",
+      "rank": 6,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.472247250384845
+    },
+    {
+      "id": "en-us-vet",
+      "lang": "en",
+      "set": "tuning",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.559761118960048
+    },
+    {
+      "id": "ho-parasites",
+      "lang": "es",
+      "set": "holdout",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.596107901302657
+    },
+    {
+      "id": "ho-kibble",
+      "lang": "es",
+      "set": "holdout",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.633213313392017
+    },
+    {
+      "id": "ho-pmvf-expired",
+      "lang": "es",
+      "set": "holdout",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.513377906486742
+    },
+    {
+      "id": "ho-us-cert-days",
+      "lang": "es",
+      "set": "holdout",
+      "rank": 0,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.628289222717285
+    },
+    {
+      "id": "ho-spain",
+      "lang": "es",
+      "set": "holdout",
+      "rank": 2,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.476706800068266
+    },
+    {
+      "id": "ho-cert-data",
+      "lang": "es",
+      "set": "holdout",
+      "rank": 5,
+      "uniqueTop3": 3,
+      "contextHit": false,
+      "topSimilarity": 0.710848977768177
+    },
+    {
+      "id": "ho-inspection",
+      "lang": "es",
+      "set": "holdout",
+      "rank": 1,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.587493973973303
+    },
+    {
+      "id": "ho-fleas",
+      "lang": "es",
+      "set": "holdout",
+      "rank": 5,
+      "uniqueTop3": 3,
+      "contextHit": true,
+      "topSimilarity": 0.595582547436631
+    }
+  ]
+}

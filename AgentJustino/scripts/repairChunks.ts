@@ -37,7 +37,7 @@ async function main() {
     return;
   }
 
-  const chunks = [...new Set(docs.flatMap((doc) => splitDocumentsIntoChunks([doc], 600, 80)))];
+  const chunks = [...new Set(docs.flatMap((doc) => splitDocumentsIntoChunks([doc])))];
   console.log(`Documentos originales: ${docs.length}`);
   console.log(`Chunks generados: ${chunks.length}`);
 

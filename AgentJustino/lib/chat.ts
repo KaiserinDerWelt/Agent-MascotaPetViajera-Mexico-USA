@@ -1,9 +1,10 @@
 import { generateEmbedding } from "./embeddings.ts";
-import { splitTextIntoChunks } from "./chunking.ts";
+import { MAX_CHUNK_LENGTH, splitTextIntoChunks, stripPageChrome } from "./chunking.ts";
 import { ensureSupabaseConfigured } from "./supabase.ts";
 import { OllamaError, ollamaChat, readEnv } from "./ollama.ts";
-import { classifyQuery, scopeReply, SCOPE_REPLIES, type HistoryTurn, type ScopeDecision } from "./scope.ts";
+import { classifyQuery, scopeReply, SCOPE_REPLIES, type HistoryTurn, type ScopeDecision, type TravelDirection } from "./scope.ts";
 import { buildChatMessages, type ChatMessage } from "./prompt.ts";
+import { expandQuery, isDirectoryChunk, keywordQuery, keywordTokens, wantsDirectory } from "./searchTerms.ts";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -14,8 +15,13 @@ const DEFAULT_CHAT_MODEL = "glm-5.3-flash";
 /** Fallback models used when VITE_OLLAMA_FALLBACK_MODELS is not set. */
 const DEFAULT_FALLBACK_MODELS = ["gpt-oss:20b"];
 
-const MATCH_COUNT = 3;
+/** Candidates from search; the best CONTEXT_CHUNKS of them reach the prompt (24% → 59% vs 3, eval/ 2026-11-12). */
+const MATCH_COUNT = 10;
+/** Vector-only fallback fetches more, because vet-directory rows are filtered out afterwards. */
+const VECTOR_FETCH_COUNT = 30;
 const CONTEXT_CHUNKS = 4;
+/** Reciprocal-rank-fusion constant: smaller = the top ranks of each list weigh more. */
+const RRF_K = 10;
 /** Generous enough for a self-hosted CPU model too (cold loads are slow). */
 const DEFAULT_MODEL_TIMEOUT_MS = 60000;
 const NUM_CTX = 4096;
@@ -49,50 +55,44 @@ function getModelTimeoutMs(): number {
 // Retrieval helpers
 // ---------------------------------------------------------------------------
 
-type RankableMatch = {
+export type RankableMatch = {
   id?: number | string;
   content: string;
 };
 
-function tokenize(value: string): string[] {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((token) => token.length > 2);
+/** Distinct query keywords (stemmed, stopwords out, glossary-expanded) found in the content. */
+function keywordScore(queryKeys: Set<string>, content: string): number {
+  const contentKeys = new Set(keywordTokens(content));
+  let score = 0;
+  for (const key of queryKeys) if (contentKeys.has(key)) score++;
+  return score;
 }
 
-function scoreMatchRelevance(query: string, content: string): number {
-  const queryTokens = tokenize(query);
-  const contentTokens = tokenize(content);
-  const contentSet = new Set(contentTokens);
-
-  if (!queryTokens.length || !contentTokens.length) {
-    return 0;
-  }
-
-  const overlap = queryTokens.filter((token) => contentSet.has(token)).length;
-  const keywordRatio = overlap / Math.max(queryTokens.length, 1);
-  const contentLengthBonus = Math.min(contentTokens.length / 120, 1.5);
-
-  return keywordRatio * 10 + overlap + contentLengthBonus;
-}
-
+/**
+ * Re-ranks search candidates by fusing their search order with a keyword order (reciprocal rank
+ * fusion). Until 2026-11-12 the keyword score REPLACED the search order, which threw away correct
+ * top results (e.g. "¿Qué debe incluir el certificado de buena salud?").
+ */
 function rankMatches(query: string, matches: RankableMatch[]): RankableMatch[] {
-  return [...matches].sort((a, b) => scoreMatchRelevance(query, b.content) - scoreMatchRelevance(query, a.content));
+  const queryKeys = new Set(keywordTokens(expandQuery(query)));
+  const byKeywords = matches
+    .map((match, index) => ({ index, score: keywordScore(queryKeys, match.content) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index);
+  const keywordRank = new Map(byKeywords.map((entry, rank) => [entry.index, rank]));
+
+  return matches
+    .map((match, index) => ({ match, fused: 1 / (RRF_K + index) + 1 / (RRF_K + keywordRank.get(index)!) }))
+    .sort((a, b) => b.fused - a.fused)
+    .map(({ match }) => match);
 }
 
-/** Removes SENASICA page headers/footers that add noise to retrieved text. */
+/**
+ * Removes SENASICA page headers/footers that add noise to retrieved text.
+ * (Until 2026-11-12 this used `.*$` patterns that deleted everything after "Servicio Nacional…" or
+ * "Publicaciones Recientes", i.e. the requirement text that followed a page header.)
+ */
 function normalizeMatchContent(content: string): string {
-  return content
-    .replace(/Hoja\s+\d+\s+de\s+\d+.*$/gi, " ")
-    .replace(/Direcci[oó]n General de Salud Animal.*$/gi, " ")
-    .replace(/Publicaciones Recientes.*$/gi, " ")
-    .replace(/Servicio Nacional de Sanidad, Inocuidad y Calidad Agroalimentaria.*$/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return stripPageChrome(content).replace(/\s+/g, " ").trim();
 }
 
 function dedupeMatches(matches: RankableMatch[]): RankableMatch[] {
@@ -114,7 +114,8 @@ function expandMatchesIntoChunks(matches: RankableMatch[]): RankableMatch[] {
   const expanded: RankableMatch[] = [];
 
   for (const match of matches) {
-    const chunks = splitTextIntoChunks(match.content, 600, 80);
+    // Only legacy rows stored before chunking are split here; normal chunks are used as stored.
+    const chunks = match.content.length > MAX_CHUNK_LENGTH * 1.5 ? splitTextIntoChunks(match.content) : [];
     for (const content of chunks.length ? chunks : [match.content]) {
       if (seen.has(content)) continue;
       seen.add(content);
@@ -145,38 +146,91 @@ function cleanModelAnswer(answer: string): string {
 
 const SCOPE_REPLY_SET = new Set<string>(Object.values(SCOPE_REPLIES));
 
-/** Extractive answer used when no model is available: the most relevant sentences from the documents. */
-function buildEvidenceAnswer(query: string, matches: RankableMatch[]): string {
-  const queryTokens = new Set(tokenize(query));
+/** "[Title · SENASICA, date] text" → label and text (labels are added by lib/chunking.ts). */
+const CHUNK_LABEL = /^\[([^\]]+)\]\s*/;
+
+/**
+ * Canonical questions for an answer like "de México a Estados Unidos" to Justino's greeting.
+ * Written in SENASICA's own wording, so search finds the page for that direction.
+ */
+const DIRECTION_QUESTIONS: Record<TravelDirection, string> = {
+  mx_to_us:
+    "Si viajas a Estados Unidos de América con tu perro: ¿necesito Certificado Zoosanitario para Exportación? certificado de salud, vigencia, Médico Veterinario Responsable Autorizado (MVRA), requisitos del CDC contra la rabia canina",
+  us_to_mx:
+    "Requisitos para ingresar a México con tu perro desde Estados Unidos (origen EUA): Certificado Zoosanitario para Importación (CZI), documento de inspección de gusano barrenador (GBG), inspección física",
+};
+
+/** Page titles about each direction: a direction answer only quotes those pages when any was retrieved. */
+const DIRECTION_PAGES: Record<TravelDirection, RegExp> = {
+  mx_to_us: /\b(a )?estados unidos\b|\bEUA\b/i,
+  us_to_mx: /\ba méxico\b/i,
+};
+/** Long enough for SENASICA's run-on sentences (the key Mexico → US rule is ~480 characters). */
+const MAX_EVIDENCE_SENTENCE = 600;
+
+const DIRECTION_INTROS: Record<TravelDirection, string> = {
+  mx_to_us: "¡Guau! Para viajar con tu perrito de México a Estados Unidos, esto dice SENASICA 🐾:",
+  us_to_mx: "¡Guau! Para entrar con tu perrito a México desde Estados Unidos, esto dice SENASICA 🐾:",
+};
+
+/** PDF text loses line breaks: "…de servicio El certificado tendrá…". Split long run-ons before a sentence starter. */
+function splitRunOn(sentence: string): string[] {
+  if (sentence.length <= 300) return [sentence];
+  return sentence
+    .split(/(?<=[\p{Ll})])\s+(?=(?:El|La|Los|Las|Si|Para|Además|Derivado|Este|Esta|Recuerda|Cuando|También|No es|Tu)\s)/u)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Extractive answer used when no model is available: the sentences of the retrieved passages that
+ * share the most keywords with the question (same Spanish matching as search: stemming + glossary).
+ */
+function buildEvidenceAnswer(query: string, matches: RankableMatch[], direction?: TravelDirection): string {
+  const queryKeys = new Set(keywordTokens(expandQuery(query)));
   const seen = new Set<string>();
 
-  const sentences = matches
-    .flatMap((match) => match.content.split(/(?<=[.!?;])\s+/))
-    .map((sentence) => sentence.replace(/https?:\/\/\S+/g, "").trim())
-    .filter((sentence) => sentence.length >= 40 && sentence.length <= 400)
-    .filter((sentence) => {
+  // A direction answer must not quote rules for the opposite direction.
+  const directionPages = direction ? matches.filter((match) => DIRECTION_PAGES[direction].test(match.content.match(CHUNK_LABEL)?.[1] ?? "")) : [];
+  const sourceMatches = directionPages.length ? directionPages : matches;
+
+  const chosen = sourceMatches
+    .flatMap((match, matchIndex) => {
+      const label = match.content.match(CHUNK_LABEL)?.[1];
+      return match.content
+        .replace(CHUNK_LABEL, "")
+        .split(/(?<=[.!?;])\s+/)
+        .flatMap(splitRunOn)
+        .map((sentence, sentenceIndex) => ({ sentence: sentence.replace(/https?:\/\/\S+/g, "").trim(), label, order: matchIndex * 100 + sentenceIndex }));
+    })
+    .filter(({ sentence }) => sentence.length >= 40 && sentence.length <= MAX_EVIDENCE_SENTENCE)
+    .filter(({ sentence }) => {
       const key = sentence.toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     })
-    .map((sentence) => ({
-      sentence,
-      score: tokenize(sentence).filter((token) => queryTokens.has(token)).length,
-    }))
+    .map((entry) => {
+      const sentenceKeys = new Set(keywordTokens(entry.sentence));
+      let score = 0;
+      for (const key of queryKeys) if (sentenceKeys.has(key)) score++;
+      return { ...entry, score };
+    })
     .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
-    .map((entry) => entry.sentence);
+    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .slice(0, 3);
 
-  if (!sentences.length) {
+  if (!chosen.length) {
     return "Olfateé toda mi información de SENASICA y no encontré ese dato 🐾. Para no darte una pista equivocada, confírmalo directamente con SENASICA antes de viajar.";
   }
 
+  const sources = [...new Set(chosen.map((entry) => entry.label).filter(Boolean))];
+
   return [
-    "¡Guau! Esto es lo que encontré con mi olfato en la información de SENASICA 🐾:",
-    ...sentences.map((sentence) => `• ${sentence}`),
+    direction ? DIRECTION_INTROS[direction] : "¡Guau! Esto es lo que encontré con mi olfato en la información de SENASICA 🐾:",
+    ...chosen.map((entry) => `• ${entry.sentence}`),
     "",
+    ...(sources.length ? [`Fuente: ${sources.join("; ")}`, ""] : []),
     "Antes de viajar, confírmalo con SENASICA para que tu perrito llegue sin contratiempos.",
   ].join("\n");
 }
@@ -264,6 +318,50 @@ export type AnswerQueryResult = {
  * 3. Model: Ollama chat with the shared prompt (fine-tuned model first if configured).
  * 4. If no model answers: extractive answer from the retrieved chunks.
  */
+export type RetrievalResult =
+  | { ok: true; matches: RankableMatch[]; rankedMatches: RankableMatch[] }
+  | { ok: false; error: unknown };
+
+/** PostgREST error code for "function not found": the hybrid search SQL has not been run yet. */
+const FUNCTION_NOT_FOUND = "PGRST202";
+
+/**
+ * The retrieval half of the RAG pipeline: embed the query, search, then re-rank.
+ * Uses hybrid search (vector + Spanish full-text, supabase/schema.sql step 7) when it exists,
+ * otherwise vector search with the vet directory filtered out here.
+ * Exported so scripts/evalRetrieval.ts measures exactly what the app does.
+ */
+export async function retrieveContext(retrievalQuery: string, matchCount = MATCH_COUNT): Promise<RetrievalResult> {
+  const queryEmbedding = await generateEmbedding(retrievalQuery);
+  const supabaseClient = ensureSupabaseConfigured();
+  const includeDirectory = wantsDirectory(retrievalQuery);
+
+  const hybrid = await supabaseClient.rpc("match_documents_hybrid", {
+    query_text: keywordQuery(retrievalQuery),
+    query_embedding: queryEmbedding,
+    match_count: matchCount,
+    include_directory: includeDirectory,
+  });
+  if (!hybrid.error) return { ok: true, ...rankContext(retrievalQuery, (hybrid.data ?? []) as RankableMatch[]) };
+  if (hybrid.error.code !== FUNCTION_NOT_FOUND) return { ok: false, error: hybrid.error };
+
+  const { data, error } = await supabaseClient.rpc("match_documents", {
+    query_embedding: queryEmbedding,
+    match_count: VECTOR_FETCH_COUNT,
+  });
+  if (error) return { ok: false, error };
+
+  const hits = ((data ?? []) as RankableMatch[]).filter((hit) => includeDirectory || !isDirectoryChunk(hit.content));
+  return { ok: true, ...rankContext(retrievalQuery, hits.slice(0, matchCount)) };
+}
+
+/** Vector-search hits (best first) → the CONTEXT_CHUNKS passages Justino reads. Pure; used by evals too. */
+export function rankContext(retrievalQuery: string, hits: RankableMatch[]): { matches: RankableMatch[]; rankedMatches: RankableMatch[] } {
+  const matches = dedupeMatches(hits);
+  const rankedMatches = rankMatches(retrievalQuery, expandMatchesIntoChunks(matches)).slice(0, CONTEXT_CHUNKS);
+  return { matches, rankedMatches };
+}
+
 export async function answerQueryWithMetadata(query: string, history: HistoryTurn[] = []): Promise<AnswerQueryResult> {
   const cleanedQuery = query.trim();
 
@@ -280,23 +378,23 @@ export async function answerQueryWithMetadata(query: string, history: HistoryTur
 
   // For follow-ups ("¿y cuánto tarda?"), search with the previous question too.
   const previousUserQuestion = [...history].reverse().find((turn) => turn.role === "user")?.content ?? "";
-  const retrievalQuery = scope.followUp && previousUserQuestion ? `${previousUserQuestion} ${cleanedQuery}` : cleanedQuery;
+  // "de México a Estados Unidos" (answering Justino's greeting) becomes a real question.
+  const retrievalQuery =
+    scope.followUp && scope.direction
+      ? DIRECTION_QUESTIONS[scope.direction]
+      : scope.followUp && previousUserQuestion
+        ? `${previousUserQuestion} ${cleanedQuery}`
+        : cleanedQuery;
 
   try {
-    const queryEmbedding = await generateEmbedding(retrievalQuery);
-    const supabaseClient = ensureSupabaseConfigured();
+    const retrieval = await retrieveContext(retrievalQuery);
 
-    const { data, error } = await supabaseClient.rpc("match_documents", {
-      query_embedding: queryEmbedding,
-      match_count: MATCH_COUNT,
-    });
-
-    if (error) {
-      console.warn("Supabase match_documents failed:", error);
+    if (!retrieval.ok) {
+      console.warn("Supabase match_documents failed:", retrieval.error);
       return { answer: FAILURE_MESSAGES.database, source: "error", usedModel: false, fallback: true, chunkIds: [], scope };
     }
 
-    const matches = dedupeMatches((data ?? []) as RankableMatch[]);
+    const { matches, rankedMatches } = retrieval;
 
     if (!matches.length) {
       return {
@@ -309,9 +407,8 @@ export async function answerQueryWithMetadata(query: string, history: HistoryTur
       };
     }
 
-    const rankedMatches = rankMatches(retrievalQuery, expandMatchesIntoChunks(matches)).slice(0, CONTEXT_CHUNKS);
     const chunkIds = rankedMatches.map((entry) => entry.id).filter((id): id is number | string => id !== undefined);
-    const messages = buildChatMessages(formatContext(rankedMatches), cleanedQuery, history);
+    const messages = buildChatMessages(formatContext(rankedMatches), scope.direction && scope.followUp ? retrievalQuery : cleanedQuery, history);
 
     // Model errors are non-fatal: without a model we still answer from the retrieved documents.
     const modelResult = await generateModelAnswer(messages);
@@ -332,7 +429,7 @@ export async function answerQueryWithMetadata(query: string, history: HistoryTur
 
     console.info("RAG answer fallback to evidence", { query: cleanedQuery, chunkIds });
     return {
-      answer: buildEvidenceAnswer(retrievalQuery, rankedMatches),
+      answer: buildEvidenceAnswer(retrievalQuery, rankedMatches, scope.followUp ? scope.direction : undefined),
       source: "evidence",
       usedModel: false,
       fallback: true,

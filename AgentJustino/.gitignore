@@ -28,3 +28,6 @@ node_modules/
 
 #Ignorar secrets
 .env*
+
+# Supabase table backups (scripts/cleanDocuments.ts); may contain personal contact data
+backups/

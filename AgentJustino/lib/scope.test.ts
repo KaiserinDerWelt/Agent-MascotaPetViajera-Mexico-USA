@@ -1,7 +1,7 @@
 // Run with: npm test   (Node 22.6+ runs TypeScript directly)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classifyQuery, scopeReply, SCOPE_REPLIES, type HistoryTurn } from "./scope.ts";
+import { classifyQuery, scopeReply, SCOPE_REPLIES, type HistoryTurn, type TravelDirection } from "./scope.ts";
 import { buildChatMessages, SYSTEM_PROMPT } from "./prompt.ts";
 
 const inScope = [
@@ -96,4 +96,29 @@ test("prompt keeps system rules first and context only in the last user turn", (
   assert.equal(messages.at(-1)?.role, "user");
   assert.match(messages.at(-1)?.content ?? "", /Información de referencia:\n\[1\] Texto de SENASICA\n\nPregunta: ¿Y el microchip\?/);
   assert.match(SYSTEM_PROMPT, /México.*Estados Unidos/);
+});
+
+// Regression (2026-11-12): answering Justino's greeting question was rejected as off-topic.
+test("an answer to Justino's greeting question is in scope, with the trip direction", () => {
+  const history: HistoryTurn[] = [
+    { role: "user", content: "hola" },
+    { role: "assistant", content: SCOPE_REPLIES.greeting },
+  ];
+  const cases: Array<[string, TravelDirection]> = [
+    ["de México a Estados Unidos", "mx_to_us"],
+    ["De México a USA", "mx_to_us"],
+    ["a Estados Unidos", "mx_to_us"],
+    ["a Estados Unidos desde Guadalajara", "mx_to_us"],
+    ["de Estados Unidos a México", "us_to_mx"],
+    ["vengo de Estados Unidos", "us_to_mx"],
+    ["Vamos de Texas a Monterrey", "us_to_mx"],
+    ["a México", "us_to_mx"],
+  ];
+  for (const [reply, direction] of cases) {
+    assert.deepEqual(classifyQuery(reply, history), { kind: "in_scope", followUp: true, direction }, reply);
+  }
+});
+
+test("a bare direction without Justino's question stays out of scope", () => {
+  assert.equal(classifyQuery("de México a Estados Unidos", []).kind, "out_of_scope");
 });

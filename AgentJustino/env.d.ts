@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_LLM_TIMEOUT_MS?: string;
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
+  /** "true" shows the PDF uploader outside of `npm run dev`. */
+  readonly VITE_ENABLE_PDF_UPLOAD?: string;
 }
 
 interface ImportMeta {

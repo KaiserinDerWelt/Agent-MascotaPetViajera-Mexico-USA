@@ -6,11 +6,15 @@
 export type ScopeKind = "greeting" | "thanks" | "in_scope" | "out_of_scope";
 export type OutOfScopeReason = "other_animal" | "other_destination" | "off_topic";
 
+export type TravelDirection = "mx_to_us" | "us_to_mx";
+
 export type ScopeDecision = {
   kind: ScopeKind;
   reason?: OutOfScopeReason;
   /** True when the question only makes sense together with an earlier in-scope question. */
   followUp?: boolean;
+  /** Set when the message says which way the trip goes ("de México a Estados Unidos"). */
+  direction?: TravelDirection;
 };
 
 export type HistoryTurn = { role: "user" | "assistant"; content: string };
@@ -90,6 +94,45 @@ const THANKS = /^(muchas )?(gracias|grax|thank you|thanks|ok gracias|perfecto gr
 const FOLLOW_UP = /^(y |e |tambien |and |what about |entonces |ok |vale |pero )|\b(eso|esto|ese|esa|ahi|alli|lo mismo|that|this|it)\b/;
 const FOLLOW_UP_QUESTION = /\b(cuanto|cuantos|cuantas|cuando|donde|cual|cuales|que mas|costo|cuesta|precio|cobran|tarda|dias|horas|tiempo|vigencia|vigente|edad|meses|necesito|piden|debo|hay que|how much|how long|when|where|which|cost)\b/;
 
+const MX_PLACE = MX_US[0];
+const US_PLACE = MX_US[1];
+
+function firstMatch(text: string, pattern: RegExp): { index: number; before: string } | null {
+  const match = new RegExp(pattern.source, "g").exec(text);
+  if (!match) return null;
+  return { index: match.index, before: text.slice(0, match.index).trim().split(" ").pop() ?? "" };
+}
+
+const ORIGIN_WORD = /^(de|desde|vengo|salgo|regreso|from)$/;
+const DESTINATION_WORD = /^(a|hacia|para|rumbo|voy|vamos|to)$/;
+
+/** Which way the trip goes, from wording like "de México a USA", "a Estados Unidos", "vengo de Texas". */
+export function detectDirection(query: string): TravelDirection | undefined {
+  const text = normalize(query);
+  const mx = firstMatch(text, MX_PLACE);
+  const us = firstMatch(text, US_PLACE);
+  if (!mx && !us) return undefined;
+
+  if (mx && us) {
+    const [first, second] = mx.index < us.index ? ["mx", us] : ["us", mx];
+    // "a Estados Unidos desde México": the first place is the destination.
+    const firstIsDestination = DESTINATION_WORD.test((mx.index < us.index ? mx : us).before) && ORIGIN_WORD.test(second.before);
+    const origin = firstIsDestination ? (first === "mx" ? "us" : "mx") : first;
+    return origin === "mx" ? "mx_to_us" : "us_to_mx";
+  }
+
+  const [place, match] = mx ? (["mx", mx] as const) : (["us", us!] as const);
+  const isOrigin = ORIGIN_WORD.test(match.before) || /\b(vengo|salgo|regreso) de\b/.test(text);
+  if (place === "us") return isOrigin ? "us_to_mx" : "mx_to_us";
+  return isOrigin ? "mx_to_us" : "us_to_mx";
+}
+
+/** Justino's last message asked the user something (e.g. the greeting asks which way the trip goes). */
+function justinoAskedSomething(history: HistoryTurn[]): boolean {
+  const last = [...history].reverse().find((turn) => turn.role === "assistant");
+  return Boolean(last && /\?\s*\S{0,3}\s*$/.test(last.content.trim()));
+}
+
 function isDogTravelQuestion(text: string): boolean {
   const dog = hasAny(text, DOG);
   const travel = hasAny(text, TRAVEL);
@@ -126,7 +169,14 @@ export function classifyQuery(query: string, history: HistoryTurn[] = []): Scope
     return { kind: "out_of_scope", reason: "other_destination" };
   }
 
-  if (isDogTravelQuestion(text)) return { kind: "in_scope" };
+  const direction = detectDirection(query);
+  if (isDogTravelQuestion(text)) return direction ? { kind: "in_scope", direction } : { kind: "in_scope" };
+
+  // A short answer to Justino's own question ("¿va de México a Estados Unidos o al revés?").
+  // Until 2026-11-12 these were rejected as off-topic, because the dog context lives in his question.
+  if (direction && text.split(" ").length <= 12 && justinoAskedSomething(history)) {
+    return { kind: "in_scope", followUp: true, direction };
+  }
 
   // Follow-up questions inherit the scope of the conversation (last 3 user turns).
   const recentUserTurns = history.filter((turn) => turn.role === "user").slice(-3);

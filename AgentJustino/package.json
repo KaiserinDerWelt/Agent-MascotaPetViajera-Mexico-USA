@@ -12,7 +12,10 @@
     "check-embeddings": "node --env-file-if-exists=.env scripts/checkEmbeddings.ts",
     "reembed": "node --env-file-if-exists=.env scripts/reembed.ts",
     "seed-docs": "node --env-file-if-exists=.env scripts/seedDocs.ts",
-    "ollama-balance": "node --env-file-if-exists=.env scripts/ollamaBalance.ts"
+    "ollama-balance": "node --env-file-if-exists=.env scripts/ollamaBalance.ts",
+    "eval:retrieval": "node --env-file-if-exists=.env scripts/evalRetrieval.ts",
+    "clean-docs": "node --env-file-if-exists=.env scripts/cleanDocuments.ts",
+    "reingest-pages": "node --env-file-if-exists=.env scripts/reingestPages.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -1,0 +1,363 @@
+{
+  "_readme": "Retrieval test set for scripts/evalRetrieval.ts. A question is a hit when a retrieved chunk contains ANY of its `expect` phrases. Phrases are compared after lowercasing, removing accents and punctuation, and collapsing spaces. Add a question for every new document you upload. Questions with \"set\": \"holdout\" were written before tuning search (2026-11-12) and must never be used to tune it; they show whether a change generalizes.",
+  "questions": [
+    {
+      "id": "mx-czi",
+      "lang": "es",
+      "q": "¿Qué documento necesito para entrar a México con mi perro?",
+      "expect": [
+        "certificado zoosanitario para importacion"
+      ]
+    },
+    {
+      "id": "mx-from-us-gbg",
+      "lang": "es",
+      "q": "Vengo de Estados Unidos con mi perro, ¿qué me piden al llegar a México?",
+      "expect": [
+        "libre de gusano barrenador",
+        "documento de inspeccion que compruebe"
+      ]
+    },
+    {
+      "id": "mx-from-us-5days",
+      "lang": "es",
+      "q": "¿Con cuántos días de anticipación debe firmar el veterinario de USDA el documento para entrar a México?",
+      "expect": [
+        "dentro de los 5 dias previos al viaje"
+      ]
+    },
+    {
+      "id": "mx-from-canada",
+      "lang": "es",
+      "q": "Si viajo desde Canadá a México con mi perro, ¿necesito certificado de salud?",
+      "expect": [
+        "origen canada y procedencia canada"
+      ]
+    },
+    {
+      "id": "mx-other-15days",
+      "lang": "es",
+      "q": "¿Qué vigencia debe tener el certificado de buena salud si vengo de otro país?",
+      "expect": [
+        "vigencia maxima de 15 dias"
+      ]
+    },
+    {
+      "id": "mx-cert-contents",
+      "lang": "es",
+      "q": "¿Qué debe incluir el certificado de buena salud de mi perro?",
+      "expect": [
+        "nombre y direccion del exportador",
+        "papel membretado"
+      ]
+    },
+    {
+      "id": "mx-rabies-puppy",
+      "lang": "es",
+      "q": "Mi cachorro tiene 2 meses, ¿necesita vacuna contra la rabia para entrar a México?",
+      "expect": [
+        "menores de 3 meses"
+      ]
+    },
+    {
+      "id": "mx-deworming",
+      "lang": "es",
+      "q": "¿Mi perro debe estar desparasitado para viajar a México?",
+      "expect": [
+        "desparasitados interna y externamente"
+      ]
+    },
+    {
+      "id": "mx-no-cert",
+      "lang": "es",
+      "q": "¿Qué pasa si llego a México sin certificado de salud ni cartilla de vacunación?",
+      "expect": [
+        "si no cuentas con el certificado de buena salud",
+        "si no cumples con lo anterior"
+      ]
+    },
+    {
+      "id": "mx-carrier-bedding",
+      "lang": "es",
+      "q": "¿Puedo llevar la cama y juguetes de mi perro en la transportadora?",
+      "expect": [
+        "no se permite el ingreso de camas"
+      ]
+    },
+    {
+      "id": "mx-carrier-spray",
+      "lang": "es",
+      "q": "¿Le hacen algo a la transportadora de mi perro al llegar a México?",
+      "expect": [
+        "tratamiento preventivo mediante aspersion"
+      ]
+    },
+    {
+      "id": "mx-collar",
+      "lang": "es",
+      "q": "¿Mi perro puede entrar con su collar y correa?",
+      "expect": [
+        "collar y correa"
+      ]
+    },
+    {
+      "id": "mx-food",
+      "lang": "es",
+      "q": "¿Puedo llevar comida para mi perro cuando entro a México?",
+      "expect": [
+        "si deseas traer alimento",
+        "racion del dia de alimento"
+      ]
+    },
+    {
+      "id": "mx-cargo",
+      "lang": "es",
+      "q": "Si mando a mi perro como carga en el avión, ¿qué necesito?",
+      "expect": [
+        "agente de comercio exterior",
+        "agente aduanal"
+      ]
+    },
+    {
+      "id": "mx-ticks",
+      "lang": "es",
+      "q": "¿Qué pasa si en la inspección encuentran garrapatas en mi perro?",
+      "expect": [
+        "se detecta garrapata",
+        "se detectan ectoparasitos"
+      ]
+    },
+    {
+      "id": "pmvf-what",
+      "lang": "es",
+      "q": "Viajo a México con mi perro varias veces al año, ¿hay algún programa para facilitarlo?",
+      "expect": [
+        "programa mascota viajero frecuente"
+      ]
+    },
+    {
+      "id": "pmvf-docs",
+      "lang": "es",
+      "q": "¿Qué documentos necesito para registrar a mi perro en el Programa Mascota Viajero Frecuente?",
+      "expect": [
+        "foto reciente de tu mascota",
+        "para el registro de tu mascota deberas digitalizar"
+      ]
+    },
+    {
+      "id": "pmvf-renewal",
+      "lang": "es",
+      "q": "¿Cómo renuevo el registro de viajero frecuente de mi mascota?",
+      "expect": [
+        "renovacion presentar un nuevo certificado"
+      ]
+    },
+    {
+      "id": "pmvf-certur",
+      "lang": "es",
+      "q": "¿Dónde me registro como usuario para el PMVF?",
+      "expect": [
+        "certur"
+      ]
+    },
+    {
+      "id": "pmvf-us-gbg-2026",
+      "lang": "es",
+      "q": "Estoy en el PMVF y vengo de Estados Unidos, ¿qué cambió en agosto de 2026?",
+      "expect": [
+        "certificado de inspeccion de gbg para el traslado",
+        "a partir del 3 de agosto"
+      ]
+    },
+    {
+      "id": "pmvf-contact",
+      "lang": "es",
+      "q": "¿A qué teléfono llamo si tengo problemas con mi registro del PMVF?",
+      "expect": [
+        "55 5905 1000"
+      ]
+    },
+    {
+      "id": "us-no-cze",
+      "lang": "es",
+      "q": "¿Necesito certificado zoosanitario de exportación para llevar a mi perro de México a Estados Unidos?",
+      "expect": [
+        "no requieres tramitar un certificado zoosanitario para exportacion"
+      ]
+    },
+    {
+      "id": "us-health-cert",
+      "lang": "es",
+      "q": "¿Qué certificado de salud pide Estados Unidos para mi perro y cuánto dura?",
+      "expect": [
+        "vigencia de 5 dias"
+      ]
+    },
+    {
+      "id": "us-cdc-rabies",
+      "lang": "es",
+      "q": "¿Qué requisitos de rabia pide el CDC para que mi perro entre a Estados Unidos?",
+      "expect": [
+        "reintroduccion de rabia canina"
+      ]
+    },
+    {
+      "id": "us-who-issues",
+      "lang": "es",
+      "q": "¿Qué veterinario puede expedir el certificado de salud para que mi perro viaje a Estados Unidos?",
+      "expect": [
+        "medico veterinario responsable autorizado",
+        "directorio de mvra"
+      ]
+    },
+    {
+      "id": "other-cze",
+      "lang": "es",
+      "q": "Voy de México a Europa con mi perro, ¿qué certificado necesito?",
+      "expect": [
+        "certificado zoosanitario para exportacion cze"
+      ]
+    },
+    {
+      "id": "en-mx-entry",
+      "lang": "en",
+      "q": "What document do I need to bring my dog into Mexico?",
+      "expect": [
+        "certificado zoosanitario para importacion"
+      ]
+    },
+    {
+      "id": "en-mx-from-us",
+      "lang": "en",
+      "q": "I'm driving from Texas to Mexico with my dog, what paperwork do I need?",
+      "expect": [
+        "libre de gusano barrenador",
+        "documento de inspeccion que compruebe"
+      ]
+    },
+    {
+      "id": "en-screwworm",
+      "lang": "en",
+      "q": "Does my dog need a screwworm inspection certificate to enter Mexico from the US?",
+      "expect": [
+        "gusano barrenador"
+      ]
+    },
+    {
+      "id": "en-puppy-rabies",
+      "lang": "en",
+      "q": "Does a 2 month old puppy need a rabies vaccine to enter Mexico?",
+      "expect": [
+        "menores de 3 meses"
+      ]
+    },
+    {
+      "id": "en-bedding",
+      "lang": "en",
+      "q": "Can I keep a blanket and toys in my dog's crate when arriving in Mexico?",
+      "expect": [
+        "no se permite el ingreso de camas"
+      ]
+    },
+    {
+      "id": "en-frequent",
+      "lang": "en",
+      "q": "Is there a frequent traveler program for dogs entering Mexico?",
+      "expect": [
+        "programa mascota viajero frecuente"
+      ]
+    },
+    {
+      "id": "en-us-health-cert",
+      "lang": "en",
+      "q": "How long is the health certificate valid for my dog to enter the United States from Mexico?",
+      "expect": [
+        "vigencia de 5 dias"
+      ]
+    },
+    {
+      "id": "en-us-vet",
+      "lang": "en",
+      "q": "Which vet in Mexico can sign the health certificate for my dog to travel to the USA?",
+      "expect": [
+        "medico veterinario responsable autorizado",
+        "directorio de mvra"
+      ]
+    },
+    {
+      "id": "ho-parasites",
+      "set": "holdout",
+      "lang": "es",
+      "q": "¿Le tengo que dar algo contra parásitos a mi perro antes de entrar a México?",
+      "expect": [
+        "desparasitados interna y externamente"
+      ]
+    },
+    {
+      "id": "ho-kibble",
+      "set": "holdout",
+      "lang": "es",
+      "q": "¿Me dejan pasar croquetas para mi perro en el aeropuerto de México?",
+      "expect": [
+        "si deseas traer alimento",
+        "racion del dia de alimento"
+      ]
+    },
+    {
+      "id": "ho-pmvf-expired",
+      "set": "holdout",
+      "lang": "es",
+      "q": "Se venció mi registro del programa de viajero frecuente, ¿qué hago?",
+      "expect": [
+        "renovacion presentar un nuevo certificado"
+      ]
+    },
+    {
+      "id": "ho-us-cert-days",
+      "set": "holdout",
+      "lang": "es",
+      "q": "¿Cuántos días es válido el certificado veterinario para cruzar a Estados Unidos con mi perro?",
+      "expect": [
+        "vigencia de 5 dias"
+      ]
+    },
+    {
+      "id": "ho-spain",
+      "set": "holdout",
+      "lang": "es",
+      "q": "Me mudo a España con mi perro, ¿qué trámite hago en SENASICA?",
+      "expect": [
+        "certificado zoosanitario para exportacion cze"
+      ]
+    },
+    {
+      "id": "ho-cert-data",
+      "set": "holdout",
+      "lang": "es",
+      "q": "¿Qué datos lleva el certificado de salud que emite el veterinario para entrar a México?",
+      "expect": [
+        "nombre y direccion del exportador",
+        "papel membretado"
+      ]
+    },
+    {
+      "id": "ho-inspection",
+      "set": "holdout",
+      "lang": "es",
+      "q": "¿Revisan físicamente a mi perro cuando llego a México?",
+      "expect": [
+        "sera sujeta a una inspeccion fisica",
+        "se realizara una inspeccion fisica"
+      ]
+    },
+    {
+      "id": "ho-fleas",
+      "set": "holdout",
+      "lang": "es",
+      "q": "¿Qué hago si mi perro llega con pulgas a México?",
+      "expect": [
+        "se detectan ectoparasitos"
+      ]
+    }
+  ]
+}
